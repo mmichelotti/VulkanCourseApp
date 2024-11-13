@@ -1,0 +1,32 @@
+Vulkan Instances:
+- A vulkan instance is a reference to the vulkan context, first thing to be created because define the vulkan context itself
+- Defines version and capabilities (like extentions etc)
+- ALL VULKAN APPS START BY CREATING AN Instances
+- Enumerate over all the physical devices available (GPU or anything) and pick the best one
+- After choosing one we pick a logical device to use
+- Instances are only used to boot it up
+
+Device? two kinds
+- the physical aka GPU, cant be interacted directly tho
+- the logical aka intrface to the physical device which we will be interact with
+
+Physical Device
+- Contains Memory to allocate (such as vertex data etc)
+- Contains Queues (process commands submitted to GPU in FIFO)
+- is RETRIEVED not created 
+- It is retrieved by enumerating over all pphysical devices in the instance process 
+Queues:
+- can have multiple Queues
+- types are referred to as "queue families"
+- a family is a group of queue, to do some parallel instructions
+Queue Families (can also be a combination of the belows)
+- Graphics
+- Compute
+- Transfer
+
+Logical Device
+- Most vulkan objects are created on this device 
+- Can be created:
+Define the queue family and number of queues to assign to the logical device from the physical device
+Define all the device features you want to be enabled (es. geometry shader, anisotropy etc)
+Define the extensions (like for windows creation since it's cross-platform)

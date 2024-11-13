@@ -21,8 +21,6 @@ int main()
 	glm::vec4 testVector(1.0f);
 	auto testResault = testMatrix * testVector;
 
-
-
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
