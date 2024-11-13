@@ -10,8 +10,6 @@
 
 int main()
 {
-	//line
-	//line2
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	GLFWwindow* window = glfwCreateWindow(800, 600, "Test", nullptr, nullptr);
