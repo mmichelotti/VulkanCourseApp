@@ -8,16 +8,14 @@
 
 #include <iostream>
 
-Window* window = new Window("Test");
-Renderer* renderer = new Renderer(window->GetWindow());
+Window window = Window("Test");
+Renderer renderer = Renderer(window.GetWindow());
 
 int main()
 {
-	while (!window->IsRunning())
+	while (!window.IsRunning())
 	{
 		glfwPollEvents();
 	}
-	delete window;
-	delete renderer;
 	return 0;
 }
