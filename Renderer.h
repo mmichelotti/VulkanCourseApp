@@ -6,5 +6,16 @@
 
 class Renderer
 {
+public:
+	Renderer();
+	int Init(GLFWwindow* window);
+private:
+	GLFWwindow* window;
+
+	//Vulkan components
+	VkInstance instance;
+
+	//Vulkan functions
+	void CreateInstance();
 };
 
