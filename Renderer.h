@@ -9,8 +9,8 @@
 class Renderer
 {
 public:
-	Renderer();
-	int Init(GLFWwindow* window);
+	Renderer(GLFWwindow* window);
+	~Renderer();
 private:
 	GLFWwindow* window;
 

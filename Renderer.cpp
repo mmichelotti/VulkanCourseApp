@@ -1,14 +1,9 @@
 #include "Renderer.h"
 
 
-Renderer::Renderer()
-{
-}
-
-int Renderer::Init(GLFWwindow* window)
+Renderer::Renderer(GLFWwindow* window)
 {
     this->window = window;
-
     try
     {
         CreateInstance();
@@ -16,9 +11,12 @@ int Renderer::Init(GLFWwindow* window)
     catch (const std::runtime_error& e)
     {
         printf("ERROR: %s\n", e.what());
-        return EXIT_FAILURE;
     }
-    return 0;
+}
+
+Renderer::~Renderer()
+{
+    vkDestroyInstance(instance, nullptr);
 }
 
 void Renderer::CreateInstance()
@@ -40,7 +38,7 @@ void Renderer::CreateInstance()
     {
         instanceExtensions.push_back(glfwExtensions[i]);
     }
-    //Check instance extensions support
+    
     if (!CheckInstanceExtensionSupport(&instanceExtensions))
     {
         throw std::runtime_error("VkInstance does not support required extensions!");

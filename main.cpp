@@ -9,15 +9,15 @@
 #include <iostream>
 
 Window* window = new Window("Test");
-Renderer renderer;
+Renderer* renderer = new Renderer(window->GetWindow());
 
 int main()
 {
-	if(renderer.Init(window->GetWindow()) == EXIT_FAILURE) return EXIT_FAILURE;
 	while (!window->IsRunning())
 	{
 		glfwPollEvents();
 	}
-	//delete window;
+	delete window;
+	delete renderer;
 	return 0;
 }
