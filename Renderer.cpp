@@ -1,5 +1,6 @@
 #include "Renderer.h"
 
+
 Renderer::Renderer()
 {
 }
@@ -39,7 +40,11 @@ void Renderer::CreateInstance()
     {
         instanceExtensions.push_back(glfwExtensions[i]);
     }
-
+    //Check instance extensions support
+    if (!CheckInstanceExtensionSupport(&instanceExtensions))
+    {
+        throw std::runtime_error("VkInstance does not support required extensions!");
+    }
     //Creation information for a vulkan instance
     VkInstanceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -56,4 +61,33 @@ void Renderer::CreateInstance()
     {
         throw std::runtime_error("Failed to create a Vulkan Instance");
     }
+}
+
+bool Renderer::CheckInstanceExtensionSupport(std::vector<const char*>* checkExtensions)
+{
+    std::unordered_set<std::string> availableExtensions = GetInstanceExtensions();
+    for (const char* checkExtension : *checkExtensions)
+    {
+        if (availableExtensions.find(checkExtension) == availableExtensions.end()) return false;
+    }
+    return true;
+}
+
+std::unordered_set<std::string> Renderer::GetInstanceExtensions()
+{
+    //Count the number of extensions
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+
+    //Create of vkextensions based on the amount we have
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+    //Save it on a set of strings for faster querying
+    std::unordered_set<std::string> set;
+    for (const VkExtensionProperties& extension : extensions)
+    {
+        set.insert(extension.extensionName);
+    }
+    return set;
 }

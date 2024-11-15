@@ -3,6 +3,8 @@
 #include "GLFW/glfw3.h"
 #include <stdexcept>
 #include <vector>
+#include <unordered_set>
+#include <string>
 
 class Renderer
 {
@@ -15,7 +17,12 @@ private:
 	//Vulkan components
 	VkInstance instance;
 
-	//Vulkan functions
+	//Vulkan Create Functions
 	void CreateInstance();
+
+	//Vulkan Support Functions
+	bool CheckInstanceExtensionSupport(std::vector<const char*>* checkExtensions);
+	std::unordered_set<std::string> GetInstanceExtensions();
+
 };
 
