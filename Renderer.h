@@ -1,7 +1,6 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
-#include "Device.h"
 #include "Instance.h"
 class Renderer
 {
@@ -11,6 +10,4 @@ public:
 private:
 	GLFWwindow* window;
 	Instance* instance;
-	Device* device;
 };
-

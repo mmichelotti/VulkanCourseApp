@@ -1,13 +1,10 @@
 #include "Renderer.h"
 
-
-Renderer::Renderer(GLFWwindow* window)
+Renderer::Renderer(GLFWwindow* window) : window(window)
 {
-    this->window = window;
     try
     {
         instance = new Instance();
-        device = new Device(instance->GetInstance());
     }
     catch (const std::runtime_error& e)
     {
@@ -17,6 +14,5 @@ Renderer::Renderer(GLFWwindow* window)
 
 Renderer::~Renderer()
 {
-    delete device;
     delete instance;
 }
