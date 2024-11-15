@@ -1,31 +1,20 @@
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
+#include "Window.h"
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <GLM/glm.hpp>
-#include <GLM/mat4x4.hpp>
+#include <stdexcept>
+#include <vector>
 
 #include <iostream>
 
+
 int main()
 {
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* window = glfwCreateWindow(800, 600, "Test", nullptr, nullptr);
-
-	uint32_t extensionsCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionsCount, nullptr);
-	printf("Extensions count : %i\n", extensionsCount);
-	glm::mat4 testMatrix(1.0f);
-	glm::vec4 testVector(1.0f);
-	auto testResault = testMatrix * testVector;
-
-	while (!glfwWindowShouldClose(window))
+	Window* window = new Window("Test");
+	while (!window->IsRunning())
 	{
 		glfwPollEvents();
 	}
-	glfwDestroyWindow(window);
-	glfwTerminate();
+	//delete window;
 	return 0;
 }
