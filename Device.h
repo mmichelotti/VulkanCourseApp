@@ -10,14 +10,14 @@ public:
 	Device(const VkInstance& instance);
 	~Device();
 private:
-	VkInstance instance;
 	VkQueue graphicsQueue;
 
 	VkPhysicalDevice physical;
 	VkDevice logical;
 
-	void InitializePhysicalDevice();
+	void PickPhysicalDevice(const VkInstance& instance);
 	void InitializeLogicalDevice();
+
 	bool CheckDeviceSuitable(VkPhysicalDevice device);
 	QueueFamilyIndices GetQueueFamilies(VkPhysicalDevice device);
 };

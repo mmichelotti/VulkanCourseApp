@@ -1,8 +1,8 @@
 #include "Device.h"
 
-Device::Device(const VkInstance& instance) : instance(instance) 
+Device::Device(const VkInstance& instance)
 {
-    InitializePhysicalDevice();
+    PickPhysicalDevice(instance);
     InitializeLogicalDevice();
 }
 
@@ -11,7 +11,7 @@ Device::~Device()
     vkDestroyDevice(logical, nullptr);
 }
 
-void Device::InitializePhysicalDevice()
+void Device::PickPhysicalDevice(const VkInstance& instance)
 {
     //Enumerate Physical devices the vkInstance can access
     uint32_t physicalDeviceCount = 0;

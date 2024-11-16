@@ -42,6 +42,12 @@ Instance::Instance()
     }
 }
 
+VkSurfaceKHR Instance::CreateSurface(GLFWwindow* window)
+{
+    return VkSurfaceKHR();
+}
+
+
 Instance::~Instance()
 {
     vkDestroyInstance(instance, nullptr);

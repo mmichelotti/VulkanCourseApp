@@ -11,11 +11,11 @@ class Instance
 {
 public:
 	Instance();
+	VkSurfaceKHR CreateSurface(GLFWwindow* window);
 	VkInstance GetInstance() { return instance; }
 	~Instance();
 private:
 	VkInstance instance;
-	Device* device;
 	bool CheckExtensionSupport(std::vector<const char*>* checkExtensions);
 	std::unordered_set<std::string> GetExtensions();
 };

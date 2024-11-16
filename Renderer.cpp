@@ -1,10 +1,11 @@
 #include "Renderer.h"
 
-Renderer::Renderer(GLFWwindow* window) : window(window)
+Renderer::Renderer(Window& window)
 {
     try
     {
         instance = new Instance();
+        surface = instance->CreateSurface(window.GetWindow());
         device = new Device(instance->GetInstance());
     }
     catch (const std::runtime_error& e)

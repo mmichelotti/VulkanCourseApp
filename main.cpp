@@ -9,7 +9,7 @@
 #include <iostream>
 
 Window window = Window("Test Window");
-Renderer renderer = Renderer(window.GetWindow());
+Renderer renderer = Renderer(window);
 
 int main()
 {
