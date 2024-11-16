@@ -40,12 +40,10 @@ Instance::Instance()
     {
         throw std::runtime_error("Failed to create a Vulkan Instance");
     }
-    device = new Device(instance);
 }
 
 Instance::~Instance()
 {
-    delete device;
     vkDestroyInstance(instance, nullptr);
 }
 

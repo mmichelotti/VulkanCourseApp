@@ -8,7 +8,7 @@
 
 #include <iostream>
 
-Window window = Window("Test");
+Window window = Window("Test Window");
 Renderer renderer = Renderer(window.GetWindow());
 
 int main()

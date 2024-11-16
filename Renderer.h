@@ -10,4 +10,6 @@ public:
 private:
 	GLFWwindow* window;
 	Instance* instance;
+	Device* device;
+
 };
