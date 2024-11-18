@@ -1,21 +1,22 @@
 #define GLFW_INCLUDE_VULKAN
-#include "GLFW/glfw3.h"
-#include "Window.h"
-#include "Renderer.h"
+#include <GLFW/glfw3.h>
 
 #include <stdexcept>
 #include <vector>
-
 #include <iostream>
 
-Window window = Window("Test Window");
-Renderer renderer = Renderer(window);
+#include "VkRenderer.h"
+#include "Window.h"
 
 int main()
 {
-	while (!window.IsRunning())
+	Window mainWindow = Window("Main Window");
+	VkRenderer vulkanRenderer = VkRenderer(mainWindow);
+
+	while (mainWindow.IsRunning())
 	{
 		glfwPollEvents();
 	}
+
 	return 0;
 }

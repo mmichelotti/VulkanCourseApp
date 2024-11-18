@@ -12,7 +12,7 @@ Window::Window(std::string name, unsigned int width, unsigned int height)
 
 bool Window::IsRunning() 
 {
-	return glfwWindowShouldClose(window);
+	return !glfwWindowShouldClose(window);
 }
 
 Window::~Window()
