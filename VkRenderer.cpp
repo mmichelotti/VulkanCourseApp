@@ -2,7 +2,6 @@
 
 VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 {
-
 	try 
 	{
 		createInstance();
@@ -10,18 +9,22 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createSurface();
 		getPhysicalDevice();
 		createLogicalDevice();
+		createSwapChain();
 	}
 	catch (const std::runtime_error& e) {
 		printf("ERROR: %s\n", e.what());
-		//return EXIT_FAILURE;
 	}
 }
 
-
 VkRenderer::~VkRenderer()
 {
+	for (const SwapChainImage& image : swapChainImages)
+	{
+		vkDestroyImageView(device.logical, image.imageView, nullptr);
+	}
+	vkDestroySwapchainKHR(device.logical, swapchain, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
-	vkDestroyDevice(mainDevice.logicalDevice, nullptr);
+	vkDestroyDevice(device.logical, nullptr);
 	if (validationEnabled)
 	{
 		DestroyDebugReportCallbackEXT(instance, callback, nullptr);
@@ -124,7 +127,7 @@ void VkRenderer::createDebugCallback()
 void VkRenderer::createLogicalDevice()
 {
 	//Get the queue family indices for the chosen Physical Device
-	QueueFamilyIndices indices = getQueueFamilies(mainDevice.physicalDevice);
+	QueueFamilyIndices indices = getQueueFamilies(device.physical);
 
 	// Vector for queue creation information, and set for family indices
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -157,7 +160,7 @@ void VkRenderer::createLogicalDevice()
 	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;			// Physical Device features Logical Device will use
 
 	// Create the logical device for the given physical device
-	VkResult result = vkCreateDevice(mainDevice.physicalDevice, &deviceCreateInfo, nullptr, &mainDevice.logicalDevice);
+	VkResult result = vkCreateDevice(device.physical, &deviceCreateInfo, nullptr, &device.logical);
 	if (result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create a Logical Device!");
@@ -166,8 +169,8 @@ void VkRenderer::createLogicalDevice()
 	// Queues are created at the same time as the device...
 	// So we want handle to queues
 	// From given logical device, of given Queue Family, of given Queue Index (0 since only one queue), place reference in given VkQueue
-	vkGetDeviceQueue(mainDevice.logicalDevice, indices.graphicsFamily, 0, &graphicsQueue);
-	vkGetDeviceQueue(mainDevice.logicalDevice, indices.presentationFamily, 0, &presentationQueue);
+	vkGetDeviceQueue(device.logical, indices.graphicsFamily, 0, &graphicsQueue);
+	vkGetDeviceQueue(device.logical, indices.presentationFamily, 0, &presentationQueue);
 }
 
 void VkRenderer::createSurface()
@@ -178,6 +181,88 @@ void VkRenderer::createSurface()
 	if (result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create a surface!");
+	}
+}
+
+void VkRenderer::createSwapChain()
+{
+	SwapChainDetails swapChainDetails = getSwapChainDetails(device.physical);
+
+	//Find optimal surface values for our swapp chain
+	VkSurfaceFormatKHR surfaceFormat = chooseBestSurfaceFormat(swapChainDetails.formats);
+	VkPresentModeKHR presentationMode = chooseBestPresentationMode(swapChainDetails.presentationModes);
+	VkExtent2D extent = chooseSwapExtent(swapChainDetails.surfaceCapabilities);
+
+	//How many image are in the swap chain? get 1 more than the minimum, to amount triple buffer
+	uint32_t imageCount = swapChainDetails.surfaceCapabilities.minImageCount + 1;
+	//If iamge higher than max, then clamp to max
+	//And here it happen again, maxImageCount = 0 doesnt mean there are no maxiamges, but there is UNLIMITED (counter intuitive idk)
+	if (swapChainDetails.surfaceCapabilities.maxImageCount > 0 && swapChainDetails.surfaceCapabilities.maxImageCount < imageCount)
+	{
+		imageCount = swapChainDetails.surfaceCapabilities.maxImageCount;
+	}
+
+	//Creation information for swap chain
+	VkSwapchainCreateInfoKHR swapChainCreateInfo = {};
+	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapChainCreateInfo.surface = surface;
+	swapChainCreateInfo.imageFormat = surfaceFormat.format;
+	swapChainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
+	swapChainCreateInfo.presentMode = presentationMode;
+	swapChainCreateInfo.imageExtent = extent;
+	swapChainCreateInfo.minImageCount = imageCount;
+	swapChainCreateInfo.imageArrayLayers = 1;
+	swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapChainCreateInfo.preTransform = swapChainDetails.surfaceCapabilities.currentTransform;
+	swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapChainCreateInfo.clipped = VK_TRUE;
+
+	//Get queue family indices 
+	QueueFamilyIndices indices = getQueueFamilies(device.physical);
+
+	//IF graphics and presentation are different then swapp chain must let image be shared between families
+	if (indices.graphicsFamily != indices.presentationFamily)
+	{
+		uint32_t queueFamilyIndices[] =
+		{
+			(uint32_t)indices.graphicsFamily,
+			(uint32_t)indices.presentationFamily
+		};
+		swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapChainCreateInfo.queueFamilyIndexCount = 2;
+		swapChainCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}
+	else
+	{
+		swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapChainCreateInfo.queueFamilyIndexCount = 0;
+		swapChainCreateInfo.pQueueFamilyIndices = nullptr;
+	}
+	//if old swap chain been destoryed and this one replaces it, then link old one to quickly hand over responsabilities
+	swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	//Create swapchaing
+	VkResult result = vkCreateSwapchainKHR(device.logical, &swapChainCreateInfo, nullptr, &swapchain);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create swapchain");
+	}
+	//Chace for later references
+	swapChainImageFormat = surfaceFormat.format;
+	swapChainExtent = extent;
+
+	//Get swap chain images
+	uint32_t swapChainImageCount;
+	vkGetSwapchainImagesKHR(device.logical, swapchain, &swapChainImageCount, nullptr);
+	std::vector<VkImage> images(swapChainImageCount);
+	vkGetSwapchainImagesKHR(device.logical, swapchain, &swapChainImageCount, images.data());
+	for (VkImage image : images)
+	{
+		//Store image handle
+		SwapChainImage swapChainImage = {};
+		swapChainImage.image = image;
+		swapChainImage.imageView = createImageView(image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		swapChainImages.push_back(swapChainImage);
 	}
 }
 
@@ -201,7 +286,7 @@ void VkRenderer::getPhysicalDevice()
 	{
 		if (checkDeviceSuitable(device))
 		{
-			mainDevice.physicalDevice = device;
+			this->device.physical = device;
 			break;
 		}
 	}
@@ -412,4 +497,96 @@ std::unordered_set<std::string> VkRenderer::GetInstanceExtensions()
 		set.insert(extension.extensionName);
 	}
 	return set;
+}
+
+
+//best format is subjective
+//best format for us : VK_FORMAT_R8G8B8A8_UNORM (VK_FORMAT_B8G8R8A8_UNORM is backup)
+//best colorSpae	 : VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+VkSurfaceFormatKHR VkRenderer::chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats)
+{
+	//if only 1 format and undefined, this means all format are availalbe (counterintuitive, idk why)
+	if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
+	{
+		return { VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+	}
+	//if restricted, search for optimal
+	for (const auto& format : formats)
+	{
+		if ((format.format == VK_FORMAT_R8G8B8A8_UNORM || format.format == VK_FORMAT_B8G8R8A8_UNORM)
+			&& format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
+		{
+			return format;
+		}
+	}
+	//if cant find optimal, return the first format
+	return formats[0];
+}
+
+VkPresentModeKHR VkRenderer::chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes)
+{
+	//Look for mailbox presentation, otherwise use default FIFO KHR
+	for (const auto& presentationMode : presentationModes)
+	{
+		if (presentationMode == VK_PRESENT_MODE_MAILBOX_KHR) 
+		{
+			return presentationMode;
+		}
+	}
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D VkRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
+{
+	//if current extentt is at numeric limits, then extent can vary. Otherwise, it is the size of the window
+	//Else means the value can vary, need to set manually
+	if (surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+	{
+		return surfaceCapabilities.currentExtent;
+	}
+	else
+	{
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+		VkExtent2D newExtent = {};
+		newExtent.width = static_cast<uint32_t>(width);
+		newExtent.height = static_cast<uint32_t>(height);
+
+		//Surface also defines max and min, so make sure within boundaries
+		//Clamp for widht and for height
+
+		newExtent.width = std::max(surfaceCapabilities.minImageExtent.width, std::min(surfaceCapabilities.maxImageExtent.width, newExtent.width));
+		newExtent.height = std::max(surfaceCapabilities.minImageExtent.height, std::min(surfaceCapabilities.maxImageExtent.height, newExtent.height));
+
+		return newExtent;
+	}
+}
+
+VkImageView VkRenderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+{
+	VkImageViewCreateInfo viewCreateInfo = {};
+	viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewCreateInfo.image = image;
+	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewCreateInfo.format = format;
+	viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	
+	//subresources : allow the view to view only a part of an image
+	viewCreateInfo.subresourceRange.aspectMask = aspectFlags;
+	viewCreateInfo.subresourceRange.baseMipLevel = 0; 
+	viewCreateInfo.subresourceRange.levelCount = 1;
+	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	viewCreateInfo.subresourceRange.layerCount = 1;
+
+	//create image view and return it
+	VkImageView imageView;
+	VkResult result = vkCreateImageView(device.logical, &viewCreateInfo, nullptr, &imageView);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to crate iamge view");
+	}
+	return imageView;
 }

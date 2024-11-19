@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <unordered_set>
+#include <algorithm>
 
 #include "VulkanValidation.h"
 #include "Utilities.h"
@@ -26,13 +27,17 @@ private:
 	VkDebugReportCallbackEXT callback;
 	struct 
 	{
-		VkPhysicalDevice physicalDevice;
-		VkDevice logicalDevice;
-	} mainDevice;
+		VkPhysicalDevice physical;
+		VkDevice logical;
+	} device;
 	VkQueue graphicsQueue;
 	VkQueue presentationQueue;
 	VkSurfaceKHR surface;
-
+	VkSwapchainKHR swapchain;
+	std::vector<SwapChainImage> swapChainImages;
+	
+	VkFormat swapChainImageFormat;
+	VkExtent2D swapChainExtent;
 
 	// Vulkan Functions
 	// - Create Functions
@@ -40,6 +45,7 @@ private:
 	void createDebugCallback();
 	void createLogicalDevice();
 	void createSurface();
+	void createSwapChain();
 
 	// - Get Functions
 	void getPhysicalDevice();
@@ -55,7 +61,13 @@ private:
 	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device);
 	SwapChainDetails getSwapChainDetails(VkPhysicalDevice device);
 
-	
 	std::unordered_set<std::string> GetInstanceExtensions();
+
+	// - Choose funcitons
+	VkSurfaceFormatKHR chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
+	VkPresentModeKHR chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes);
+	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 };
 
