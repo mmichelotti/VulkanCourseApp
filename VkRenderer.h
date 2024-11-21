@@ -8,6 +8,7 @@
 #include <set>
 #include <unordered_set>
 #include <algorithm>
+#include <array>
 
 #include "VulkanValidation.h"
 #include "Utilities.h"
@@ -36,7 +37,9 @@ private:
 	VkSwapchainKHR swapchain;
 	std::vector<SwapChainImage> swapChainImages;
 
+	VkPipeline graphicsPipeline;
 	VkPipelineLayout pipelineLayout;
+	VkRenderPass renderPass;
 	
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;

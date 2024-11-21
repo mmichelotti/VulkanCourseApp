@@ -20,7 +20,9 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 
 VkRenderer::~VkRenderer()
 {
+	vkDestroyPipeline(device.logical, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device.logical, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device.logical, renderPass, nullptr);
 	for (const SwapChainImage& image : swapChainImages)
 	{
 		vkDestroyImageView(device.logical, image.imageView, nullptr);
@@ -271,6 +273,67 @@ void VkRenderer::createSwapChain()
 
 void VkRenderer::createRenderPass()
 {
+	// Color attachment of RenderPass
+	VkAttachmentDescription colorAttachment = {};
+	colorAttachment.format = swapChainImageFormat;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+	// Framebffer data will be stored as an image, but images can be given different data layout
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	//Attachment reference uses an attachment index that refers to an index in the attahcment list papssed to renderPassCreateInfo
+	VkAttachmentReference colorAttachmentReference = {};
+	colorAttachmentReference.attachment = 0;
+	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentReference;
+
+	//Need to determin when layout transitions occur using subpass dependencies
+	std::array<VkSubpassDependency, 2> subpassDependencies;
+	//conversion from LAYOUT UNDEFINED to LAYOUT COLOR ATTACHMENT OPTIMAL
+	// transition must happpen after...
+	subpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	subpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	subpassDependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	// but mast happen before...
+	subpassDependencies[0].dstSubpass = 0;
+	subpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	subpassDependencies[0].dependencyFlags = 0;
+
+	subpassDependencies[1].srcSubpass = 0;
+	subpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	subpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	subpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpassDependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	subpassDependencies[1].dependencyFlags = 0;
+
+
+	//Create info for render pass
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+	renderPassInfo.dependencyCount = static_cast<uint32_t>(subpassDependencies.size());
+	renderPassInfo.pDependencies = subpassDependencies.data();
+
+	VkResult result = vkCreateRenderPass(device.logical, &renderPassInfo, nullptr, &renderPass);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Faield to create a render pass");
+	}
 }
 
 void VkRenderer::createGraphicsPipeline()
@@ -381,11 +444,11 @@ void VkRenderer::createGraphicsPipeline()
 	//Summarised: (1 * newAlpha) + (0 * oldAlpha) = newAlpha
 
 	// -- BLENDING --
-	VkPipelineColorBlendStateCreateInfo blendingInfo = {};
-	blendingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	blendingInfo.logicOpEnable = VK_FALSE;
-	blendingInfo.attachmentCount = 1;
-	blendingInfo.pAttachments = &colorAttachmentInfo;
+	VkPipelineColorBlendStateCreateInfo colorBlendInfo = {};
+	colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendInfo.logicOpEnable = VK_FALSE;
+	colorBlendInfo.attachmentCount = 1;
+	colorBlendInfo.pAttachments = &colorAttachmentInfo;
 
 	// -- PIPELINE LAYOUT --
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo= {};
@@ -403,6 +466,33 @@ void VkRenderer::createGraphicsPipeline()
 	}
 
 	// -- DEPTH STENCIL TEST --
+
+	// -- GRAPHICS PIPELINE CREATION --
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2;
+	pipelineInfo.pStages = shaderStages;
+	pipelineInfo.pVertexInputState = &vertexInputInfo;
+	pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
+	pipelineInfo.pViewportState = &viewportStateInfo;
+	pipelineInfo.pDynamicState = nullptr;
+	pipelineInfo.pRasterizationState = &rasterizerInfo;
+	pipelineInfo.pMultisampleState = &multisampling;
+	pipelineInfo.pColorBlendState = &colorBlendInfo;
+	pipelineInfo.pDepthStencilState = nullptr;
+	pipelineInfo.layout = pipelineLayout;							// pippeline layout pipeline should use
+	pipelineInfo.renderPass = renderPass;							// render pass description pippeline is compatible with
+	pipelineInfo.subpass = 0;										// subppass of render pass to use with pipeline
+
+	//Can create multiple pipelines that can derive from one another 
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;				// existing pippelien to derive from...
+	pipelineInfo.basePipelineIndex = -1;							// or index of pipeline being created to derive from ( if created multiple )
+
+	result = vkCreateGraphicsPipelines(device.logical, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create a pipeline");
+	}
 
 	// -- DESTROY --
 	vkDestroyShaderModule(device.logical, fragShaderModule, nullptr);
