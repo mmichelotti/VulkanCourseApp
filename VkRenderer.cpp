@@ -10,6 +10,7 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		getPhysicalDevice();
 		createLogicalDevice();
 		createSwapChain();
+		createGraphicsPipeline();
 	}
 	catch (const std::runtime_error& e) {
 		printf("ERROR: %s\n", e.what());
@@ -264,6 +265,37 @@ void VkRenderer::createSwapChain()
 		swapChainImage.imageView = createImageView(image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		swapChainImages.push_back(swapChainImage);
 	}
+}
+
+void VkRenderer::createGraphicsPipeline()
+{
+	// Build Shader Module to link to Grapphics Pipeline
+	VkShaderModule vertexShaderModule = createShaderModule("Shaders/vert.spv");
+	VkShaderModule fragShaderModule = createShaderModule("Shaders/frag.spv");
+	
+	// -- SHADER STAGE CREATEION INFORMATION --
+	// 
+	// Vertex stage creation information
+	VkPipelineShaderStageCreateInfo vertexCreateInfo = {};
+	vertexCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexCreateInfo.module = vertexShaderModule;
+	vertexCreateInfo.pName = "main";		//can custom the main name of the shaders to be run,
+
+	// Fragment stage creation information
+	VkPipelineShaderStageCreateInfo fragCreateInfo = {};
+	fragCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragCreateInfo.module = fragShaderModule;
+	fragCreateInfo.pName = "main";
+
+	//Shader stages into array
+	VkPipelineShaderStageCreateInfo shaderStages[] = {vertexCreateInfo, fragCreateInfo};
+	//Create pipeline
+
+	//Destroy
+	vkDestroyShaderModule(device.logical, fragShaderModule, nullptr);
+	vkDestroyShaderModule(device.logical, vertexShaderModule, nullptr);
 }
 
 void VkRenderer::getPhysicalDevice()
@@ -589,4 +621,23 @@ VkImageView VkRenderer::createImageView(VkImage image, VkFormat format, VkImageA
 		throw std::runtime_error("Failed to crate iamge view");
 	}
 	return imageView;
+}
+
+VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
+{
+	auto code = readFile(fileName);
+	VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
+	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shaderModuleCreateInfo.codeSize = code.size();
+	shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //to change type of pointer data it uses REINTERPRET keywoard instead of STATIC
+
+	VkShaderModule shaderModule;
+	VkResult result = vkCreateShaderModule(device.logical, &shaderModuleCreateInfo, nullptr, &shaderModule);
+
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create a shader module!");
+	}
+	
+	return shaderModule;
 }
