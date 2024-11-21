@@ -10,6 +10,7 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		getPhysicalDevice();
 		createLogicalDevice();
 		createSwapChain();
+		createRenderPass();
 		createGraphicsPipeline();
 	}
 	catch (const std::runtime_error& e) {
@@ -19,6 +20,7 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 
 VkRenderer::~VkRenderer()
 {
+	vkDestroyPipelineLayout(device.logical, pipelineLayout, nullptr);
 	for (const SwapChainImage& image : swapChainImages)
 	{
 		vkDestroyImageView(device.logical, image.imageView, nullptr);
@@ -267,33 +269,142 @@ void VkRenderer::createSwapChain()
 	}
 }
 
+void VkRenderer::createRenderPass()
+{
+}
+
 void VkRenderer::createGraphicsPipeline()
 {
 	// Build Shader Module to link to Grapphics Pipeline
 	VkShaderModule vertexShaderModule = createShaderModule("Shaders/vert.spv");
 	VkShaderModule fragShaderModule = createShaderModule("Shaders/frag.spv");
 	
-	// -- SHADER STAGE CREATEION INFORMATION --
-	// 
+	// -- SHADER STAGE  --
+	 
 	// Vertex stage creation information
-	VkPipelineShaderStageCreateInfo vertexCreateInfo = {};
-	vertexCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertexCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertexCreateInfo.module = vertexShaderModule;
-	vertexCreateInfo.pName = "main";		//can custom the main name of the shaders to be run,
+	VkPipelineShaderStageCreateInfo vertexInfo = {};
+	vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexInfo.module = vertexShaderModule;
+	vertexInfo.pName = "main";		//can custom the main name of the shaders to be run,
 
 	// Fragment stage creation information
-	VkPipelineShaderStageCreateInfo fragCreateInfo = {};
-	fragCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragCreateInfo.module = fragShaderModule;
-	fragCreateInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo fragInfo = {};
+	fragInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragInfo.module = fragShaderModule;
+	fragInfo.pName = "main";
 
-	//Shader stages into array
-	VkPipelineShaderStageCreateInfo shaderStages[] = {vertexCreateInfo, fragCreateInfo};
-	//Create pipeline
+	VkPipelineShaderStageCreateInfo shaderStages[] = {vertexInfo, fragInfo};
+	
+	// -- VERTEX INPUT -- 
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = 0;
+	vertexInputInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
 
-	//Destroy
+	// -- INPUT ASSEMBLY --
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
+	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;	
+
+	// -- VIEWPORT  -- 
+	VkViewport viewportInfo = {};
+	viewportInfo.x = 0.0f;
+	viewportInfo.y = 0.0f;
+	viewportInfo.width = (float)swapChainExtent.width;
+	viewportInfo.height = (float)swapChainExtent.height;
+	viewportInfo.minDepth = 0.0f;
+	viewportInfo.maxDepth = 1.0f;
+
+	// -- SCISSOR  -- 
+	VkRect2D scissor = {};
+	scissor.offset = { 0,0 };
+	scissor.extent = swapChainExtent;
+	
+	// -- VIEWPORT STATE --
+	VkPipelineViewportStateCreateInfo viewportStateInfo = {};
+	viewportStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateInfo.viewportCount = 1;
+	viewportStateInfo.pViewports = &viewportInfo;
+	viewportStateInfo.scissorCount = 1;
+	viewportStateInfo.pScissors = &scissor;
+	
+	// -- DYNAMIC STATES --
+	/*
+	//Dynamic states to enable (basically to stretch the viewport dynamically
+	std::vector<VkDynamicState> dynamicStateEnables;
+	dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);		//Dynamic viewpport : can resize in command buffer with vkCmdSetViewport(commandbuffer, 0, 1, &viewport)
+	dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);		//Dynamic scissor : can resize in cmd buffer with vkCmdSetScissor(commandBuffer, 0, 1, &scissor)
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStateEnables.size());
+	dynamicState.pDynamicStates = dynamicStateEnables.data();
+	// remember that swappchain extent has not changed
+	// so each time we resize we need to destroy current swapchain and pass a new swapchain with images resized, also the depth buffer, or any image used
+	*/
+
+	// -- RASTERIZER --
+	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
+	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizerInfo.depthClampEnable = VK_FALSE;				//CChange if fragment beyond near/far pplanes are clipppepd (default) or clamped to plane
+	rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;		//idk why would you care about discarding data and skip the rasterization process, not clear for now
+	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;		//VERY INTRESTING, can rasterize only lines for instance to render the wireframe // We need to add GPU feature too if we change this
+	rasterizerInfo.lineWidth = 1.0f;
+	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;		//Do not draw the reverse normal
+	rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;		//determining if the face of a triangle is front base on clockwise, if we could see the back the points would have rendered anticlowckwise
+	rasterizerInfo.depthBiasEnable = VK_FALSE;				//Wether to add deppth bias to fragments (for stoppipng shadow achne in the shadow mapping)
+
+	// -- MULTISAMPLING --
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	// -- COLOR ATTACHMENTS --
+	//(how blending is handled)
+	VkPipelineColorBlendAttachmentState colorAttachmentInfo = {};
+	colorAttachmentInfo.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorAttachmentInfo.blendEnable = VK_TRUE;
+	colorAttachmentInfo.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorAttachmentInfo.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorAttachmentInfo.colorBlendOp = VK_BLEND_OP_ADD;
+	//Summarised: (originColorBlendFactor * newColor) colorBlendOp(destinationColorBlendFactor * oldColor)
+	//			  (VK_BLEND_FACTOR_SRC_ALPHA * newColor) + (VK_BLEND_FACTOR_ONE_MINUS_ALPHA * oldColor)
+	//			  (newColorAlpha * newColor) + ((1- newColorAlpha) * oldColor)
+	colorAttachmentInfo.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorAttachmentInfo.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorAttachmentInfo.alphaBlendOp = VK_BLEND_OP_ADD;
+	//Summarised: (1 * newAlpha) + (0 * oldAlpha) = newAlpha
+
+	// -- BLENDING --
+	VkPipelineColorBlendStateCreateInfo blendingInfo = {};
+	blendingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	blendingInfo.logicOpEnable = VK_FALSE;
+	blendingInfo.attachmentCount = 1;
+	blendingInfo.pAttachments = &colorAttachmentInfo;
+
+	// -- PIPELINE LAYOUT --
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo= {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 0;
+	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+	//Create layout
+	VkResult result = vkCreatePipelineLayout(device.logical, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create pipeline layout");
+	}
+
+	// -- DEPTH STENCIL TEST --
+
+	// -- DESTROY --
 	vkDestroyShaderModule(device.logical, fragShaderModule, nullptr);
 	vkDestroyShaderModule(device.logical, vertexShaderModule, nullptr);
 }

@@ -35,9 +35,13 @@ private:
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
 	std::vector<SwapChainImage> swapChainImages;
+
+	VkPipelineLayout pipelineLayout;
 	
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
+
+
 
 	// Vulkan Functions
 	// - Create Functions
@@ -46,6 +50,7 @@ private:
 	void createLogicalDevice();
 	void createSurface();
 	void createSwapChain();
+	void createRenderPass();
 	void createGraphicsPipeline();
 
 	// - Get Functions
