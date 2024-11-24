@@ -12,6 +12,10 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createSwapChain();
 		createRenderPass();
 		createGraphicsPipeline();
+		createFrameBuffers();
+		createCommandPool();
+		createCommandBuffers();
+		recordCommands();
 	}
 	catch (const std::runtime_error& e) {
 		printf("ERROR: %s\n", e.what());
@@ -20,6 +24,11 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 
 VkRenderer::~VkRenderer()
 {
+	vkDestroyCommandPool(device.logical, graphicsCommandPool, nullptr);
+	for (auto frameBuffer : swapChainFramebuffers)
+	{
+		vkDestroyFramebuffer(device.logical, frameBuffer, nullptr);
+	}
 	vkDestroyPipeline(device.logical, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device.logical, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device.logical, renderPass, nullptr);
@@ -104,11 +113,7 @@ void VkRenderer::createInstance()
 
 	// Create instance
 	VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
-
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create a Vulkan Instance!");
-	}
+	checkResult(result, "Failed to create a Vulkan Instance!");
 }
 
 void VkRenderer::createDebugCallback()
@@ -123,10 +128,7 @@ void VkRenderer::createDebugCallback()
 
 	// Create debug callback with custom create function
 	VkResult result = CreateDebugReportCallbackEXT(instance, &callbackCreateInfo, nullptr, &callback);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create Debug Callback!");
-	}
+	checkResult(result,"Failed to create Debug Callback!");
 }
 
 void VkRenderer::createLogicalDevice()
@@ -166,10 +168,8 @@ void VkRenderer::createLogicalDevice()
 
 	// Create the logical device for the given physical device
 	VkResult result = vkCreateDevice(device.physical, &deviceCreateInfo, nullptr, &device.logical);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create a Logical Device!");
-	}
+	checkResult(result, "Failed to create a Logical Device!");
+
 
 	// Queues are created at the same time as the device...
 	// So we want handle to queues
@@ -182,11 +182,7 @@ void VkRenderer::createSurface()
 {
 	// Create Surface (creates a surface create info struct, runs the create surface function, returns result)
 	VkResult result = glfwCreateWindowSurface(instance, window, nullptr, &surface);
-
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create a surface!");
-	}
+	checkResult(result, "Failed to create a surface!");
 }
 
 void VkRenderer::createSwapChain()
@@ -248,10 +244,8 @@ void VkRenderer::createSwapChain()
 
 	//Create swapchaing
 	VkResult result = vkCreateSwapchainKHR(device.logical, &swapChainCreateInfo, nullptr, &swapchain);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create swapchain");
-	}
+	checkResult(result, "Failed to create swapchain");
+
 	//Chace for later references
 	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
@@ -330,10 +324,8 @@ void VkRenderer::createRenderPass()
 	renderPassInfo.pDependencies = subpassDependencies.data();
 
 	VkResult result = vkCreateRenderPass(device.logical, &renderPassInfo, nullptr, &renderPass);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Faield to create a render pass");
-	}
+	checkResult(result, "Faield to create a render pass");
+
 }
 
 void VkRenderer::createGraphicsPipeline()
@@ -460,10 +452,8 @@ void VkRenderer::createGraphicsPipeline()
 
 	//Create layout
 	VkResult result = vkCreatePipelineLayout(device.logical, &pipelineLayoutInfo, nullptr, &pipelineLayout);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create pipeline layout");
-	}
+	checkResult(result, "Failed to create pipeline layout");
+
 
 	// -- DEPTH STENCIL TEST --
 
@@ -489,14 +479,105 @@ void VkRenderer::createGraphicsPipeline()
 	pipelineInfo.basePipelineIndex = -1;							// or index of pipeline being created to derive from ( if created multiple )
 
 	result = vkCreateGraphicsPipelines(device.logical, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create a pipeline");
-	}
+	checkResult(result,"Failed to create a pipeline");
 
 	// -- DESTROY --
 	vkDestroyShaderModule(device.logical, fragShaderModule, nullptr);
 	vkDestroyShaderModule(device.logical, vertexShaderModule, nullptr);
+}
+
+void VkRenderer::createFrameBuffers()
+{
+	swapChainFramebuffers.resize(swapChainImages.size());
+	for (size_t i = 0; i < swapChainFramebuffers.size(); i++)
+	{
+		std::array<VkImageView, 1> attachments =
+		{
+			swapChainImages[i].imageView
+		};
+
+
+		VkFramebufferCreateInfo frameBufferInfo = {};		
+		frameBufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		frameBufferInfo.renderPass = renderPass;											// render pass layout the framebuffei will be used ith
+		frameBufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());		
+		frameBufferInfo.pAttachments = attachments.data();									// list of attachmetns 1 to 1 with render pass
+		frameBufferInfo.width = swapChainExtent.width;										
+		frameBufferInfo.height = swapChainExtent.height;
+		frameBufferInfo.layers = 1;
+
+		VkResult result = vkCreateFramebuffer(device.logical, &frameBufferInfo, nullptr, &swapChainFramebuffers[i]);
+		checkResult(result, "Failed to create a frame buffer");
+
+	}
+}
+
+void VkRenderer::createCommandPool()
+{
+	QueueFamilyIndices queueFamilyIndices = getQueueFamilies(device.physical);
+
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+
+	// Create a graphics queue family cmd pool
+	VkResult result = vkCreateCommandPool(device.logical, &poolInfo, nullptr, &graphicsCommandPool);
+	checkResult(result,"Failed to craete a command pool");
+}
+
+void VkRenderer::createCommandBuffers()
+{
+	commandBuffers.resize(swapChainFramebuffers.size());
+	VkCommandBufferAllocateInfo commandInfo = {};
+	commandInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandInfo.commandPool = graphicsCommandPool;
+	commandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;		//PRIMARY means executed by a POOL, SECONDARY means executed by another CMD BUFFER PRIMARY
+
+	commandInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+	VkResult result = vkAllocateCommandBuffers(device.logical, &commandInfo, commandBuffers.data());
+	checkResult(result, "Failed to create commadn buffers!");
+	//doenst need to be destoryed like others since we are not creating, we are allocating to the command pool, when the cmd pool is destoryed, also this is destoyed
+}
+
+void VkRenderer::recordCommands()
+{
+	//Info about how to begin each cmd buffer
+	VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
+	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;			//buffer can be resubmitted when it has already been submitted and is awaint execution
+
+
+	VkClearValue clearValues[] =
+	{
+		{0.6f, 0.65f, 0.4f, 1.0f}
+	};
+
+	//Info about how to begin a render pass, only need for graphical application
+	VkRenderPassBeginInfo renderPassBeginInfo = {};
+	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassBeginInfo.renderPass = renderPass;
+	renderPassBeginInfo.renderArea.offset = { 0,0 };
+	renderPassBeginInfo.renderArea.extent = swapChainExtent;
+	renderPassBeginInfo.pClearValues = clearValues;
+	renderPassBeginInfo.clearValueCount = 1;
+
+
+	for (size_t i = 0; i < commandBuffers.size(); i++)
+	{
+		renderPassBeginInfo.framebuffer = swapChainFramebuffers[i];
+		VkResult result = vkBeginCommandBuffer(commandBuffers[i], &cmdBufferBeginInfo);
+		checkResult(result, "Failed to start recording a command buffer!");
+
+			vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				
+				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+				vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+
+			vkCmdEndRenderPass(commandBuffers[i]);
+
+		result = vkEndCommandBuffer(commandBuffers[i]);
+		checkResult(result, "Failed to stop recording a command buffer");
+	}
 }
 
 void VkRenderer::getPhysicalDevice()
@@ -635,6 +716,14 @@ bool VkRenderer::checkDeviceSuitable(VkPhysicalDevice device)
 	}
 
 	return indices.isValid() && extensionsSupported && swapChainValid;
+}
+
+void VkRenderer::checkResult(const VkResult& result, const char* errorMessage)
+{
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error(errorMessage);
+	}
 }
 
 QueueFamilyIndices VkRenderer::getQueueFamilies(VkPhysicalDevice device)
@@ -817,10 +906,8 @@ VkImageView VkRenderer::createImageView(VkImage image, VkFormat format, VkImageA
 	//create image view and return it
 	VkImageView imageView;
 	VkResult result = vkCreateImageView(device.logical, &viewCreateInfo, nullptr, &imageView);
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to crate iamge view");
-	}
+	checkResult(result, "Failed to crate iamge view");
+
 	return imageView;
 }
 
@@ -834,11 +921,7 @@ VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
 
 	VkShaderModule shaderModule;
 	VkResult result = vkCreateShaderModule(device.logical, &shaderModuleCreateInfo, nullptr, &shaderModule);
+	checkResult(result,"Failed to create a shader module!");
 
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create a shader module!");
-	}
-	
 	return shaderModule;
 }

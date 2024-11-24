@@ -30,3 +30,63 @@ Logical Device
 Define the queue family and number of queues to assign to the logical device from the physical device
 Define all the device features you want to be enabled (es. geometry shader, anisotropy etc)
 Define the extensions (like for windows creation since it's cross-platform)
+
+
+Graphics Pipeline:
+- the same largely as openGL but needs to be set up individually
+- render pass which actually handles the render
+INDEX AND VERTEX BUFFERS - INPUT ASSEMPLER - VERTEX SHADER - TESSELATION - GEOMETRY SHADER - RASTERIZATION - FRAGMENT SHADER - COLOR BLENDING - FRAMEBUFFER
+
+"IV buffers" raw data
+"ASsembler" assemble the data
+"Vertex" hwo to handle those vertices (usually matrices operations)
+"Tesselation" can split each triangle in more tiangles
+"Gemotry" to add more geometry to the one we have already
+"Rasterization" looks at all points and figure out where they should be in the screen
+"Fragment" use the pixel to color it
+"Color" to transparency etc
+"Framebuffer" final the image 
+
+SHADERS:
+They are precompipled to intermediate code SPIR-V and load into a shader module, not runtime like on opengl.
+SPIR V can be compiled using tool in the SDK : glslangValidator.exe
+We will end up with .spv file 
+Pass then the shader into a classic vulkan info struct
+Put all shaders into a list and populate PPippelineCreatInfo struct
+
+FRAMEBUFFER
+- the connection between an image/s and the render pass
+- the render tpass then outputs fragment from a pipeline to the image bound to the frame buffer
+- framebuffer images line up 1 to 1 with the attachments in the render pass
+
+COMMAND BUFFER
+- Vulkan uses prerecording commands,  we put a command buffer it in the queue when we want to write it
+- always usually has the same format :
+	- start a render pass
+	- bind a pipeline
+	- bind vertex/index data
+	- bind secriptor sets and push constants (uniforms)
+	- draw
+- there is another optional stage, to begin a new subpass ( need to bind the appropriate bpipeline again)
+
+COMMAND POOL
+- command are allocated from a pool
+- a pool is a space of memory all together, pool is handled by itself
+- we allocate one of these pool for a cmd buffer
+
+QUEUES
+- we put these cmd buffer into a graphics queue for execution
+
+SYNCHRONISATION
+- hard conceppt in vulkan
+- this is to make sure we are not accessing the same data from multiple threads
+- semaphores and fences are used
+
+SEMAPHORES 
+- are flags that say if a resource can be accessed
+- if they are "signalled" then the resource is available
+- if "unsignalled" the resource is in use, so we need to wait
+
+FENCES
+- very simiar to semaphor
+- the difference is we have the ability to UNSIGNAL a fance and wait on a fence CPU side 

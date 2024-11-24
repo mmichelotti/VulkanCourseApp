@@ -31,11 +31,19 @@ private:
 		VkPhysicalDevice physical;
 		VkDevice logical;
 	} device;
+
 	VkQueue graphicsQueue;
 	VkQueue presentationQueue;
+
+
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
+
 	std::vector<SwapChainImage> swapChainImages;
+	std::vector<VkFramebuffer> swapChainFramebuffers;
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	VkCommandPool graphicsCommandPool;
 
 	VkPipeline graphicsPipeline;
 	VkPipelineLayout pipelineLayout;
@@ -55,6 +63,12 @@ private:
 	void createSwapChain();
 	void createRenderPass();
 	void createGraphicsPipeline();
+	void createFrameBuffers();
+	void createCommandPool();
+	void createCommandBuffers();
+
+	// - Record
+	void recordCommands();
 
 	// - Get Functions
 	void getPhysicalDevice();
@@ -65,6 +79,8 @@ private:
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	bool checkValidationLayerSupport();
 	bool checkDeviceSuitable(VkPhysicalDevice device);
+	void checkResult(const VkResult& result, const char* errorMessage);
+
 
 	// -- Getter Functions
 	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device);
