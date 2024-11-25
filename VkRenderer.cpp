@@ -16,14 +16,71 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createCommandPool();
 		createCommandBuffers();
 		recordCommands();
+		createSynchronization();
 	}
 	catch (const std::runtime_error& e) {
 		printf("ERROR: %s\n", e.what());
 	}
 }
 
+void VkRenderer::draw()
+{
+	// 1. Get the next available image to draw to and set something to signal when it's finished (semaphor)
+	// 2. Submit cmd buffer to queue for execution, need to wait image availability and signal when it's finished
+	// 3. Present image to screen when rendering ready
+
+	// -- STOP FOR FENCES -- 
+	// wait for given fence to signal (open) from last draw before continuing CPU code, after that unsignal it (close)
+	vkWaitForFences(device.logical, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());		
+	vkResetFences(device.logical, 1, &drawFences[currentFrame]);
+
+	// -- GET NEXT IMAGE --
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(device.logical, swapchain, std::numeric_limits<uint64_t>::max(), imageSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+
+	// -- SUBMIT CMD BUFFER TO RENDER --
+	VkPipelineStageFlags waitStages[] =
+	{
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	};
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;								
+	submitInfo.pWaitSemaphores = &imageSemaphores[currentFrame];				
+	submitInfo.pWaitDstStageMask = waitStages;													// Stages when to check semaphor, in our case we wait when we reach the color attachment
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];									// cmd buffer to submit, since in the chain we have 1 to 1 relation it's at img index
+	submitInfo.signalSemaphoreCount = 1;														// n of semaphores to signal when it's finished
+	submitInfo.pSignalSemaphores = &renderSemaphores[currentFrame];								// semaphore signalled when we finished rendering
+
+	VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);	 // submit cmd buffer to queue and reopen the fence
+	checkResult(result, "Failed to submit cmd buffer to queue");
+
+	// -- PRPESENT RENDERED IMAGE TO SCREEN --
+	VkPresentInfoKHR presentImageInfo = {};
+	presentImageInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentImageInfo.waitSemaphoreCount = 1;
+	presentImageInfo.pWaitSemaphores = &renderSemaphores[currentFrame];
+	presentImageInfo.swapchainCount = 1;
+	presentImageInfo.pSwapchains = &swapchain;
+	presentImageInfo.pImageIndices = &imageIndex;
+
+	result = vkQueuePresentKHR(graphicsQueue, &presentImageInfo);
+	checkResult(result, "Failed to present image to screen");
+
+	currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
+}
+
 VkRenderer::~VkRenderer()
 {
+	vkDeviceWaitIdle(device.logical);
+	for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+	{
+		vkDestroySemaphore(device.logical, renderSemaphores[i], nullptr);
+		vkDestroySemaphore(device.logical, imageSemaphores[i], nullptr);
+		vkDestroyFence(device.logical, drawFences[i], nullptr);
+	}
 	vkDestroyCommandPool(device.logical, graphicsCommandPool, nullptr);
 	for (auto frameBuffer : swapChainFramebuffers)
 	{
@@ -539,17 +596,42 @@ void VkRenderer::createCommandBuffers()
 	//doenst need to be destoryed like others since we are not creating, we are allocating to the command pool, when the cmd pool is destoryed, also this is destoyed
 }
 
+void VkRenderer::createSynchronization()
+{
+	imageSemaphores.resize(MAX_FRAME_DRAWS);
+	renderSemaphores.resize(MAX_FRAME_DRAWS);
+	drawFences.resize(MAX_FRAME_DRAWS);
+
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fenceInfo = {};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;					// to start a fence as open ( by default is closed )
+
+	for (size_t i = 0; i < MAX_FRAME_DRAWS; i++) 
+	{
+		if (
+			vkCreateSemaphore(device.logical, &semaphoreInfo, nullptr, &imageSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(device.logical, &semaphoreInfo, nullptr, &renderSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(device.logical, &fenceInfo, nullptr, &drawFences[i]) != VK_SUCCESS
+			)
+		{
+			throw std::runtime_error("Failed to create a semaphor or a fence");
+		}
+
+	}
+}
+
 void VkRenderer::recordCommands()
 {
 	//Info about how to begin each cmd buffer
 	VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;			//buffer can be resubmitted when it has already been submitted and is awaint execution
-
 
 	VkClearValue clearValues[] =
 	{
-		{0.6f, 0.65f, 0.4f, 1.0f}
+		{0.0f, 0.0f, 0.0f, 1.0f}
 	};
 
 	//Info about how to begin a render pass, only need for graphical application
@@ -917,7 +999,7 @@ VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
 	VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
 	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	shaderModuleCreateInfo.codeSize = code.size();
-	shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //to change type of pointer data it uses REINTERPRET keywoard instead of STATIC
+	shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); //to cast type of pointer data it uses REINTERPRET keywoard instead of STATIC
 
 	VkShaderModule shaderModule;
 	VkResult result = vkCreateShaderModule(device.logical, &shaderModuleCreateInfo, nullptr, &shaderModule);

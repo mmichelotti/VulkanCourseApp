@@ -18,10 +18,12 @@ class VkRenderer
 {
 public:
 	VkRenderer(const Window& window);
+	void draw();
 	~VkRenderer();
 
 private:
 	GLFWwindow* window;
+	size_t currentFrame = 0;
 
 	// Vulkan Components
 	VkInstance instance;
@@ -52,6 +54,9 @@ private:
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 
+	std::vector<VkSemaphore> imageSemaphores;
+	std::vector <VkSemaphore> renderSemaphores;
+	std::vector <VkFence> drawFences;
 
 
 	// Vulkan Functions
@@ -66,6 +71,7 @@ private:
 	void createFrameBuffers();
 	void createCommandPool();
 	void createCommandBuffers();
+	void createSynchronization();
 
 	// - Record
 	void recordCommands();

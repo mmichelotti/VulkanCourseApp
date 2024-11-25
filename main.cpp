@@ -16,6 +16,7 @@ int main()
 	while (mainWindow.IsRunning())
 	{
 		glfwPollEvents();
+		vulkanRenderer.draw();
 	}
 
 	return EXIT_SUCCESS;
