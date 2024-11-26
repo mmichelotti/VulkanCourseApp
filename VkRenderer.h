@@ -13,6 +13,7 @@
 #include "VulkanValidation.h"
 #include "Utilities.h"
 #include "Window.h"
+#include "Mesh.h"
 
 class VkRenderer
 {
@@ -24,6 +25,9 @@ public:
 private:
 	GLFWwindow* window;
 	size_t currentFrame = 0;
+
+	//Scene objects
+	Mesh* firstMesh;
 
 	// Vulkan Components
 	VkInstance instance;
@@ -85,7 +89,6 @@ private:
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	bool checkValidationLayerSupport();
 	bool checkDeviceSuitable(VkPhysicalDevice device);
-	void checkResult(const VkResult& result, const char* errorMessage);
 
 
 	// -- Getter Functions

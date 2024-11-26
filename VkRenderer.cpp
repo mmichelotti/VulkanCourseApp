@@ -9,6 +9,13 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createSurface();
 		getPhysicalDevice();
 		createLogicalDevice();
+		std::vector<Vertex> meshVertices =
+		{
+			{{ 0.0f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+			{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+			{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+		};
+		firstMesh = new Mesh(device.physical, device.logical, &meshVertices);
 		createSwapChain();
 		createRenderPass();
 		createGraphicsPipeline();
@@ -22,59 +29,10 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		printf("ERROR: %s\n", e.what());
 	}
 }
-
-void VkRenderer::draw()
-{
-	// 1. Get the next available image to draw to and set something to signal when it's finished (semaphor)
-	// 2. Submit cmd buffer to queue for execution, need to wait image availability and signal when it's finished
-	// 3. Present image to screen when rendering ready
-
-	// -- STOP FOR FENCES -- 
-	// wait for given fence to signal (open) from last draw before continuing CPU code, after that unsignal it (close)
-	vkWaitForFences(device.logical, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());		
-	vkResetFences(device.logical, 1, &drawFences[currentFrame]);
-
-	// -- GET NEXT IMAGE --
-	uint32_t imageIndex;
-	vkAcquireNextImageKHR(device.logical, swapchain, std::numeric_limits<uint64_t>::max(), imageSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-
-	// -- SUBMIT CMD BUFFER TO RENDER --
-	VkPipelineStageFlags waitStages[] =
-	{
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-	};
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.waitSemaphoreCount = 1;								
-	submitInfo.pWaitSemaphores = &imageSemaphores[currentFrame];				
-	submitInfo.pWaitDstStageMask = waitStages;													// Stages when to check semaphor, in our case we wait when we reach the color attachment
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];									// cmd buffer to submit, since in the chain we have 1 to 1 relation it's at img index
-	submitInfo.signalSemaphoreCount = 1;														// n of semaphores to signal when it's finished
-	submitInfo.pSignalSemaphores = &renderSemaphores[currentFrame];								// semaphore signalled when we finished rendering
-
-	VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);	 // submit cmd buffer to queue and reopen the fence
-	checkResult(result, "Failed to submit cmd buffer to queue");
-
-	// -- PRPESENT RENDERED IMAGE TO SCREEN --
-	VkPresentInfoKHR presentImageInfo = {};
-	presentImageInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentImageInfo.waitSemaphoreCount = 1;
-	presentImageInfo.pWaitSemaphores = &renderSemaphores[currentFrame];
-	presentImageInfo.swapchainCount = 1;
-	presentImageInfo.pSwapchains = &swapchain;
-	presentImageInfo.pImageIndices = &imageIndex;
-
-	result = vkQueuePresentKHR(graphicsQueue, &presentImageInfo);
-	checkResult(result, "Failed to present image to screen");
-
-	currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
-}
-
 VkRenderer::~VkRenderer()
 {
 	vkDeviceWaitIdle(device.logical);
+	delete firstMesh;
 	for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
 	{
 		vkDestroySemaphore(device.logical, renderSemaphores[i], nullptr);
@@ -101,6 +59,55 @@ VkRenderer::~VkRenderer()
 		DestroyDebugReportCallbackEXT(instance, callback, nullptr);
 	}
 	vkDestroyInstance(instance, nullptr);
+}
+void VkRenderer::draw()
+{
+	// 1. Get the next available image to draw to and set something to signal when it's finished (semaphor)
+	// 2. Submit cmd buffer to queue for execution, need to wait image availability and signal when it's finished
+	// 3. Present image to screen when rendering ready
+
+	// -- STOP FOR FENCES -- 
+	// wait for given fence to signal (open) from last draw before continuing CPU code, after that unsignal it (close)
+	vkWaitForFences(device.logical, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());		
+	vkResetFences(device.logical, 1, &drawFences[currentFrame]);
+
+	// -- GET NEXT IMAGE --
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(device.logical, swapchain, std::numeric_limits<uint64_t>::max(), imageSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+
+	// -- SUBMIT CMD BUFFER TO RENDER --
+	VkPipelineStageFlags waitStages[] =
+	{
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	};
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;								
+	submitInfo.pWaitSemaphores = &imageSemaphores[currentFrame];				
+	submitInfo.pWaitDstStageMask = waitStages;													// Stages when to check semaphor, in our case we wait when we reach the color attachment
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];									// cmd buffer to submit, since in the chain we have 1 to 1 relation it's at img index
+	submitInfo.signalSemaphoreCount = 1;														// n of semaphores to signal when it's finished
+	submitInfo.pSignalSemaphores = &renderSemaphores[currentFrame];								// semaphore signalled when we finished rendering
+
+	VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);	 // submit cmd buffer to queue and reopen the fence
+	checkResult(result, "Failed to submit cmd buffer to queue");
+
+	// -- PRPESENT RENDERED IMAGE TO SCREEN --
+	VkPresentInfoKHR presentImageInfo = {};
+	presentImageInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentImageInfo.waitSemaphoreCount = 1;
+	presentImageInfo.pWaitSemaphores = &renderSemaphores[currentFrame];
+	presentImageInfo.swapchainCount = 1;
+	presentImageInfo.pSwapchains = &swapchain;
+	presentImageInfo.pImageIndices = &imageIndex;
+
+	result = vkQueuePresentKHR(graphicsQueue, &presentImageInfo);
+	checkResult(result, "Failed to present image to screen");
+
+	currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
 }
 
 void VkRenderer::createInstance()
@@ -410,12 +417,31 @@ void VkRenderer::createGraphicsPipeline()
 	VkPipelineShaderStageCreateInfo shaderStages[] = {vertexInfo, fragInfo};
 	
 	// -- VERTEX INPUT -- 
+	VkVertexInputBindingDescription bindingDescription = {};
+	bindingDescription.binding = 0;														// can bind multiple streams of data
+	bindingDescription.stride = sizeof(Vertex);											// size of a signel vertex object
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;							// how to move between data after each vertex. there is _INSTANCE too to instance multiple objects that are the same
+
+	
+	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions;
+	//position attributes
+	attributeDescriptions[0].binding = 0;												// which binding the data is at (in shad.frag layout(binding = 0) is implicit
+	attributeDescriptions[0].location = 0;												// layout shader location
+	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[0].offset = offsetof(Vertex, position);						// where this attribute is defined in the data of a singel vertexù
+
+	//color attributes
+	attributeDescriptions[1].binding = 0;												
+	attributeDescriptions[1].location = 1;												
+	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[1].offset = offsetof(Vertex, color);
+
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 	// -- INPUT ASSEMBLY --
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
@@ -653,7 +679,12 @@ void VkRenderer::recordCommands()
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 				
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-				vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+
+				VkBuffer vertexBuffers[] = { firstMesh->getVertexBuffer() };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+				vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(firstMesh->getVertexCount()), 1,0,0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -800,13 +831,6 @@ bool VkRenderer::checkDeviceSuitable(VkPhysicalDevice device)
 	return indices.isValid() && extensionsSupported && swapChainValid;
 }
 
-void VkRenderer::checkResult(const VkResult& result, const char* errorMessage)
-{
-	if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error(errorMessage);
-	}
-}
 
 QueueFamilyIndices VkRenderer::getQueueFamilies(VkPhysicalDevice device)
 {
