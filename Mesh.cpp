@@ -7,6 +7,7 @@ Mesh::Mesh()
 Mesh::Mesh(VkPhysicalDevice newPhysicalDevice, VkDevice newLogicalDevice, std::vector<Vertex>* vertices) :
 	vertexCount(vertices->size()), physicalDevice(newPhysicalDevice), logicalDevice(newLogicalDevice)
 {
+	bufferSize = sizeof(Vertex) * vertices->size();
 	createVertexBuffer(vertices);
 }
 
@@ -18,9 +19,14 @@ Mesh::~Mesh()
 
 void Mesh::createVertexBuffer(std::vector<Vertex>* vertices)
 {
-	
-	VkDeviceSize bufferSize = sizeof(Vertex) * vertices->size();
-	createCompleteBuffer(physicalDevice, logicalDevice, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, &vertexBuffer, &vertexBufferMemory);
+	VkCompleteBufferInfo completeBufferInfo = {};
+	completeBufferInfo.bufferSize = bufferSize;
+	completeBufferInfo.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	completeBufferInfo.bufferProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+	completeBufferInfo.pBuffer = &vertexBuffer;
+	completeBufferInfo.pBufferMemory = &vertexBufferMemory;
+	createCompleteBuffer(physicalDevice, logicalDevice, &completeBufferInfo);
+	//createCompleteBuffer(physicalDevice, logicalDevice, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, &vertexBuffer, &vertexBufferMemory);
 	// MAP MEMORY TO VERTEX BUFFER
 	void* data;																					// 1. Create pointer to a point in normal memory
 	vkMapMemory(logicalDevice, vertexBufferMemory, 0, bufferSize, 0, &data);				// 2. Map vertex buffer memory to that point

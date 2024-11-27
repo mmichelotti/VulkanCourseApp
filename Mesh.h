@@ -18,6 +18,7 @@ private:
 	size_t vertexCount;
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	VkDeviceSize bufferSize;
 
 	VkPhysicalDevice physicalDevice;
 	VkDevice logicalDevice;

@@ -57,6 +57,14 @@ static uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t al
 		}
 	}
 }
+struct VkCompleteBufferInfo
+{
+	VkDeviceSize bufferSize;
+	VkBufferUsageFlags bufferUsage;
+	VkMemoryPropertyFlags bufferProperties;
+	VkBuffer* pBuffer;
+	VkDeviceMemory* pBufferMemory;
+};
 static void createCompleteBuffer(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, 
 	VkMemoryPropertyFlags bufferProperties, VkBuffer* pBuffer, VkDeviceMemory* pBufferMemory)
 {
@@ -84,6 +92,33 @@ static void createCompleteBuffer(VkPhysicalDevice physicalDevice, VkDevice logic
 	checkResult(result, "Failed to allocate vertexbuffer");
 
 	vkBindBufferMemory(logicalDevice, *pBuffer, *pBufferMemory, 0);
+}
+static void createCompleteBuffer(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkCompleteBufferInfo* completeBufferInfo)
+{
+	// CREATE VERTEX BUFFER
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = completeBufferInfo->bufferSize;
+	bufferInfo.usage = completeBufferInfo->bufferUsage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VkResult result = vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, completeBufferInfo->pBuffer);
+	checkResult(result, "Failed to create a Vertex Buffer");
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(logicalDevice, *completeBufferInfo->pBuffer, &memRequirements);
+
+	// ALLOCATE MEMORY TO BUFFER
+	VkMemoryAllocateInfo memAllocInfo = {};
+	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAllocInfo.allocationSize = memRequirements.size;
+	memAllocInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, completeBufferInfo->bufferProperties);
+
+	// ALLOCATE MEMORY TO VK DEVICE MEMORY
+	result = vkAllocateMemory(logicalDevice, &memAllocInfo, nullptr, completeBufferInfo->pBufferMemory);
+	checkResult(result, "Failed to allocate vertexbuffer");
+
+	vkBindBufferMemory(logicalDevice, *completeBufferInfo->pBuffer, *completeBufferInfo->pBufferMemory, 0);
 }
 static std::vector<char> readFile(const std::string& fileName)
 {
