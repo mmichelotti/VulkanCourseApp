@@ -1,6 +1,8 @@
 #pragma once
 #include <fstream>
 #include <GLM\glm.hpp>
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 
 const size_t MAX_FRAME_DRAWS = 2;
 struct Vertex
@@ -41,6 +43,48 @@ struct SwapChainImage
 	VkImage image;
 	VkImage imageView;
 };
+static uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties)
+{
+	//Get the properties of physical device memory
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+	{
+		if ((allowedTypes & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			return i;
+		}
+	}
+}
+static void createCompleteBuffer(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, 
+	VkMemoryPropertyFlags bufferProperties, VkBuffer* pBuffer, VkDeviceMemory* pBufferMemory)
+{
+	// CREATE VERTEX BUFFER
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = bufferSize;
+	bufferInfo.usage = bufferUsage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VkResult result = vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, pBuffer);
+	checkResult(result, "Failed to create a Vertex Buffer");
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(logicalDevice, *pBuffer, &memRequirements);
+
+	// ALLOCATE MEMORY TO BUFFER
+	VkMemoryAllocateInfo memAllocInfo = {};
+	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAllocInfo.allocationSize = memRequirements.size;
+	memAllocInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, bufferProperties);
+
+	// ALLOCATE MEMORY TO VK DEVICE MEMORY
+	result = vkAllocateMemory(logicalDevice, &memAllocInfo, nullptr, pBufferMemory);
+	checkResult(result, "Failed to allocate vertexbuffer");
+
+	vkBindBufferMemory(logicalDevice, *pBuffer, *pBufferMemory, 0);
+}
 static std::vector<char> readFile(const std::string& fileName)
 {
 	//std:binary tells to read file as binary
