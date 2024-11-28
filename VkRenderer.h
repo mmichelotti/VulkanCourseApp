@@ -76,6 +76,7 @@ private:
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSynchronization();
+	void createMesh();
 
 	// - Record
 	void recordCommands();
@@ -89,6 +90,8 @@ private:
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	bool checkValidationLayerSupport();
 	bool checkDeviceSuitable(VkPhysicalDevice device);
+
+	
 
 
 	// -- Getter Functions
@@ -104,5 +107,7 @@ private:
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	VkShaderModule createShaderModule(const std::string& fileName);
+
+
 };
 

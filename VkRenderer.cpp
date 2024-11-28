@@ -14,15 +14,7 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createGraphicsPipeline();
 		createFrameBuffers();
 		createCommandPool();
-
-		std::vector<Vertex> meshVertices =
-		{
-			{{ 0.0f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-			{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-			{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}}
-		};
-		firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices);
-
+		createMesh();
 		createCommandBuffers();
 		recordCommands();
 		createSynchronization();
@@ -651,6 +643,41 @@ void VkRenderer::createSynchronization()
 	}
 }
 
+void VkRenderer::createMesh()
+{
+	// vertex data should be overlapping without index data
+	//std::vector<Vertex> meshVertices =
+	//{
+	//	{{ 0.4f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},		// 0
+	//	{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},		// 1
+	//	{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
+
+	//	{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
+	//	{{-0.4f, -0.4f, 0.0f}, {1.0f, 1.0f, 0.0f}},		// 3
+	//	{{ 0.4f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}}		// 0
+	//};
+	//firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices);
+	//delete firstMesh;
+
+	// this vertex data is without overlappping
+	std::vector<Vertex> meshVertices =
+	{
+		{{ 0.4f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},		// 0
+		{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},		// 1
+		{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
+		{{-0.4f, -0.4f, 0.0f}, {1.0f, 1.0f, 0.0f}},		// 3
+	};
+
+	// so that's why we also need an INDEX buffer
+	// we are specifing the ORDER of those vertices, so we expliti say which vertex will be used multiple times
+	std::vector<uint32_t> meshIndices =
+	{
+		0, 1, 2,
+		2, 3, 0
+	};
+	firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices, &meshIndices);
+}
+
 void VkRenderer::recordCommands()
 {
 	//Info about how to begin each cmd buffer
@@ -685,8 +712,9 @@ void VkRenderer::recordCommands()
 				VkBuffer vertexBuffers[] = { firstMesh->getVertexBuffer() };
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffers[i], firstMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-				vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(firstMesh->getVertexCount()), 1,0,0);
+				vkCmdDrawIndexed(commandBuffers[i], firstMesh->getIndexCount(), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
