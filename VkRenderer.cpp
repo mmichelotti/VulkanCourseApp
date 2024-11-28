@@ -9,18 +9,20 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createSurface();
 		getPhysicalDevice();
 		createLogicalDevice();
+		createSwapChain();
+		createRenderPass();
+		createGraphicsPipeline();
+		createFrameBuffers();
+		createCommandPool();
+
 		std::vector<Vertex> meshVertices =
 		{
 			{{ 0.0f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},
 			{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},
 			{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}}
 		};
-		firstMesh = new Mesh(device.physical, device.logical, &meshVertices);
-		createSwapChain();
-		createRenderPass();
-		createGraphicsPipeline();
-		createFrameBuffers();
-		createCommandPool();
+		firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices);
+
 		createCommandBuffers();
 		recordCommands();
 		createSynchronization();
