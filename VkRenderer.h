@@ -28,6 +28,7 @@ private:
 
 	//Scene objects
 	Mesh* firstMesh;
+	std::vector<Mesh*> meshes;
 
 	// Vulkan Components
 	VkInstance instance;

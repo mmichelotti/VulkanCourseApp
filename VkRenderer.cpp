@@ -26,6 +26,10 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 VkRenderer::~VkRenderer()
 {
 	vkDeviceWaitIdle(device.logical);
+	for (const Mesh* mesh : meshes)
+	{
+		delete mesh;
+	}
 	delete firstMesh;
 	for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
 	{
@@ -660,12 +664,19 @@ void VkRenderer::createMesh()
 	//delete firstMesh;
 
 	// this vertex data is without overlappping
-	std::vector<Vertex> meshVertices =
+	std::vector<Vertex> meshVertices1 =
 	{
-		{{ 0.4f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},		// 0
-		{{ 0.4f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},		// 1
-		{{-0.4f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
-		{{-0.4f, -0.4f, 0.0f}, {1.0f, 1.0f, 0.0f}},		// 3
+		{{ -0.2f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},		// 0
+		{{ -0.2f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},		// 1
+		{{ -1.0f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
+		{{ -1.0f, -0.4f, 0.0f}, {1.0f, 1.0f, 0.0f}},		// 3
+	};
+	std::vector<Vertex> meshVertices2 =
+	{
+		{{ 1.0f, -0.4f, 0.0f}, {1.0f, 0.0f, 0.0f}},		// 0
+		{{ 1.0f,  0.4f, 0.0f}, {0.0f, 1.0f, 0.0f}},		// 1
+		{{ 0.2f,  0.4f, 0.0f}, {0.0f, 0.0f, 1.0f}},		// 2
+		{{ 0.2f, -0.4f, 0.0f}, {1.0f, 1.0f, 0.0f}},		// 3
 	};
 
 	// so that's why we also need an INDEX buffer
@@ -675,7 +686,11 @@ void VkRenderer::createMesh()
 		0, 1, 2,
 		2, 3, 0
 	};
-	firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices, &meshIndices);
+	Mesh* firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices1, &meshIndices);
+	Mesh* secondMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices2, &meshIndices);
+	meshes.push_back(firstMesh);
+	meshes.push_back(secondMesh);
+
 }
 
 void VkRenderer::recordCommands()
@@ -709,12 +724,15 @@ void VkRenderer::recordCommands()
 				
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-				VkBuffer vertexBuffers[] = { firstMesh->getVertexBuffer() };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffers[i], firstMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+				for(size_t j = 0; j < meshes.size(); j++)
+				{
+					VkBuffer vertexBuffers[] = { meshes[j]->getVertexBuffer()};
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(commandBuffers[i], meshes[j]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-				vkCmdDrawIndexed(commandBuffers[i], firstMesh->getIndexCount(), 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffers[i], meshes[j]->getIndexCount(), 1, 0, 0, 0);
+				}
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
