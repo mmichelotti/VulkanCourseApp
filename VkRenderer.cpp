@@ -15,7 +15,7 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createGraphicsPipeline();
 		createFrameBuffers();
 		createCommandPool();
-		createMVP();
+		mvp = MVP((float)swapChainExtent.width, (float)swapChainExtent.height);
 		createMesh();
 		createCommandBuffers();
 		createUniformBuffer();
@@ -730,14 +730,6 @@ void VkRenderer::createMesh()
 	meshes.push_back(firstMesh);
 	meshes.push_back(secondMesh);
 
-}
-
-void VkRenderer::createMVP()
-{
-	mvp.projection = glm::perspective(glm::radians(45.0f), (float) swapChainExtent.width / (float) swapChainExtent.height, 0.01f, 100.0f);
-	mvp.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	mvp.model = glm::mat4(1.0f);
-	mvp.projection[1][1] *= -1; // Vulkan inverts the Y 
 }
 
 void VkRenderer::createUniformBuffer()

@@ -17,6 +17,11 @@
 #include "Utilities.h"
 #include "Window.h"
 #include "Mesh.h"
+struct Device
+{
+	VkPhysicalDevice physical;
+	VkDevice logical;
+};
 
 class VkRenderer
 {
@@ -34,22 +39,13 @@ private:
 	Mesh* firstMesh;
 	std::vector<Mesh*> meshes;
 
-	//Scene settings
-	struct MVP
-	{
-		glm::mat4 projection;
-		glm::mat4 view;
-		glm::mat4 model;
-	} mvp;
+	MVP mvp;
 
 	// Vulkan Components
 	VkInstance instance;
 	VkDebugReportCallbackEXT callback;
-	struct 
-	{
-		VkPhysicalDevice physical;
-		VkDevice logical;
-	} device;
+
+	Device device;
 
 	VkQueue graphicsQueue;
 	VkQueue presentationQueue;
@@ -102,7 +98,6 @@ private:
 	void createCommandBuffers();
 	void createSynchronization();
 	void createMesh();
-	void createMVP();
 
 	
 	// - Create for descriptors

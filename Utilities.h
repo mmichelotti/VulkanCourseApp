@@ -1,8 +1,11 @@
 #pragma once
 #include <fstream>
-#include <GLM\glm.hpp>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#include <GLM\glm.hpp>
+#include <GLM/gtc/matrix_transform.hpp>
 
 const size_t MAX_FRAME_DRAWS = 2;
 struct Vertex
@@ -200,3 +203,21 @@ static void createBuffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDev
 	// Allocate memory to given vertex buffer
 	vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 }
+
+
+
+struct MVP
+{
+	glm::mat4 projection;
+	glm::mat4 view;
+	glm::mat4 model;
+
+	MVP() : projection(glm::mat4(1.0f)), view(glm::mat4(1.0f)), model(glm::mat4(1.0f)) {}
+	MVP(float width, float height)
+	{
+		projection = glm::perspective(glm::radians(45.0f), width / height, 0.01f, 100.0f);
+		view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		model = glm::mat4(1.0f);
+		projection[1][1] *= -1; // Vulkan inverts the Y 
+	}
+};
