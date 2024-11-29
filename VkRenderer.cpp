@@ -11,11 +11,16 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createLogicalDevice();
 		createSwapChain();
 		createRenderPass();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createFrameBuffers();
 		createCommandPool();
+		createMVP();
 		createMesh();
 		createCommandBuffers();
+		createUniformBuffer();
+		createDescriptorPool();
+		createDescriptorSets();
 		recordCommands();
 		createSynchronization();
 	}
@@ -23,9 +28,21 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		printf("ERROR: %s\n", e.what());
 	}
 }
+void VkRenderer::updateModel(glm::mat4 newModel)
+{
+	mvp.model = newModel;
+}
 VkRenderer::~VkRenderer()
 {
 	vkDeviceWaitIdle(device.logical);
+
+	vkDestroyDescriptorPool(device.logical, descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device.logical, descriptorSetLayout, nullptr);
+	for (size_t i = 0; i < uniformBuffer.size(); i++)
+	{
+		vkDestroyBuffer(device.logical, uniformBuffer[i], nullptr);
+		vkFreeMemory(device.logical, uniformBufferMemory[i], nullptr);
+	}
 	for (const Mesh* mesh : meshes)
 	{
 		delete mesh;
@@ -73,6 +90,7 @@ void VkRenderer::draw()
 	uint32_t imageIndex;
 	vkAcquireNextImageKHR(device.logical, swapchain, std::numeric_limits<uint64_t>::max(), imageSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
+	updateUniformBuffer(imageIndex);
 
 	// -- SUBMIT CMD BUFFER TO RENDER --
 	VkPipelineStageFlags waitStages[] =
@@ -390,6 +408,27 @@ void VkRenderer::createRenderPass()
 
 }
 
+void VkRenderer::createDescriptorSetLayout()
+{
+	// MVPP binding info (basically info of which shader wants to use these uniform values)
+	VkDescriptorSetLayoutBinding layoutBindingInfo = {};
+	layoutBindingInfo.binding = 0;
+	layoutBindingInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	layoutBindingInfo.descriptorCount = 1;
+	layoutBindingInfo.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	layoutBindingInfo.pImmutableSamplers = nullptr;
+
+	// create set with given bindings
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &layoutBindingInfo;
+
+	// create set layout
+	VkResult result = vkCreateDescriptorSetLayout(device.logical, &layoutInfo, nullptr, &descriptorSetLayout);
+	checkResult(result, "Failed to create descriptor set layout");
+}
+
 void VkRenderer::createGraphicsPipeline()
 {
 	// Build Shader Module to link to Grapphics Pipeline
@@ -486,13 +525,13 @@ void VkRenderer::createGraphicsPipeline()
 	// -- RASTERIZER --
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
 	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizerInfo.depthClampEnable = VK_FALSE;				//CChange if fragment beyond near/far pplanes are clipppepd (default) or clamped to plane
-	rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;		//idk why would you care about discarding data and skip the rasterization process, not clear for now
-	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;		//VERY INTRESTING, can rasterize only lines for instance to render the wireframe // We need to add GPU feature too if we change this
+	rasterizerInfo.depthClampEnable = VK_FALSE;						//CChange if fragment beyond near/far pplanes are clipppepd (default) or clamped to plane
+	rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;				//idk why would you care about discarding data and skip the rasterization process, not clear for now
+	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;				//VERY INTRESTING, can rasterize only lines for instance to render the wireframe // We need to add GPU feature too if we change this
 	rasterizerInfo.lineWidth = 1.0f;
-	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;		//Do not draw the reverse normal
-	rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;		//determining if the face of a triangle is front base on clockwise, if we could see the back the points would have rendered anticlowckwise
-	rasterizerInfo.depthBiasEnable = VK_FALSE;				//Wether to add deppth bias to fragments (for stoppipng shadow achne in the shadow mapping)
+	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;				//Do not draw the reverse normal
+	rasterizerInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;		//determining if the face of a triangle is front base on clockwise, if we could see the back the points would have rendered anticlowckwise (in vulkan Y is inverted so it's viceversa)
+	rasterizerInfo.depthBiasEnable = VK_FALSE;						//Wether to add deppth bias to fragments (for stoppipng shadow achne in the shadow mapping)
 
 	// -- MULTISAMPLING --
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
@@ -526,8 +565,8 @@ void VkRenderer::createGraphicsPipeline()
 	// -- PIPELINE LAYOUT --
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo= {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -693,6 +732,94 @@ void VkRenderer::createMesh()
 
 }
 
+void VkRenderer::createMVP()
+{
+	mvp.projection = glm::perspective(glm::radians(45.0f), (float) swapChainExtent.width / (float) swapChainExtent.height, 0.01f, 100.0f);
+	mvp.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	mvp.model = glm::mat4(1.0f);
+	mvp.projection[1][1] *= -1; // Vulkan inverts the Y 
+}
+
+void VkRenderer::createUniformBuffer()
+{
+	VkDeviceSize bufferSize = sizeof(MVP);
+	size_t vectorLength = swapChainImages.size();
+	// one uniform buffer for each image ( and so for each cmd buffer )
+	uniformBuffer.resize(vectorLength);
+	uniformBufferMemory.resize(vectorLength);
+
+	// Create
+	for (size_t i = 0; i < vectorLength; i++)
+	{
+		createBuffer(device.physical, device.logical, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
+	}
+}
+
+void VkRenderer::createDescriptorPool()
+{
+	//Type of descriptor + how many descriptorS (not descripptor sets)
+	VkDescriptorPoolSize poolSize = {};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = static_cast<uint32_t>(uniformBuffer.size());
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.maxSets = static_cast<uint32_t>(uniformBuffer.size());
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+
+	VkResult result = vkCreateDescriptorPool(device.logical, &poolInfo, nullptr, &descriptorPool);
+	checkResult(result, "Faield to create descriptor pool");
+}
+
+void VkRenderer::createDescriptorSets()
+{
+	size_t vectorLength = uniformBuffer.size();
+	descriptorSets.resize(vectorLength);
+
+	std::vector<VkDescriptorSetLayout> setLayouts(vectorLength, descriptorSetLayout);
+
+	VkDescriptorSetAllocateInfo setAllocInfo = {};
+	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	setAllocInfo.descriptorPool = descriptorPool;
+	setAllocInfo.descriptorSetCount = static_cast<uint32_t>(vectorLength);
+	setAllocInfo.pSetLayouts = setLayouts.data();
+
+	VkResult result = vkAllocateDescriptorSets(device.logical, &setAllocInfo, descriptorSets.data());
+	checkResult(result, "Failed to allocate descriptor sets");
+
+	// update all of descripptor set buffer bindings
+	for (size_t i = 0; i < vectorLength; i++)
+	{
+		//buffer info
+		VkDescriptorBufferInfo mvpBufferInfo = {};
+		mvpBufferInfo.buffer = uniformBuffer[i];
+		mvpBufferInfo.offset = 0;
+		mvpBufferInfo.range = sizeof(MVP);
+
+		// Data about connection between binding and buffer
+		VkWriteDescriptorSet mvpSetWrite = {};
+		mvpSetWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		mvpSetWrite.dstSet = descriptorSets[i];								// descriptor set to update
+		mvpSetWrite.dstBinding = 0;											// binding to updpate (mathces with the shader.file)
+		mvpSetWrite.dstArrayElement = 0;									
+		mvpSetWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		mvpSetWrite.descriptorCount = 1;
+		mvpSetWrite.pBufferInfo = &mvpBufferInfo;
+
+		// Uppdate the descripptor sets with the new buffer/binding info
+		vkUpdateDescriptorSets(device.logical, 1, &mvpSetWrite, 0, nullptr);
+	}
+}
+
+void VkRenderer::updateUniformBuffer(uint32_t imgIndex)
+{
+	void* data;
+	vkMapMemory(device.logical, uniformBufferMemory[imgIndex], 0, sizeof(MVP), 0, &data);
+	memcpy(data, &mvp, sizeof(MVP));
+	vkUnmapMemory(device.logical, uniformBufferMemory[imgIndex]);
+}
+
 void VkRenderer::recordCommands()
 {
 	//Info about how to begin each cmd buffer
@@ -730,7 +857,8 @@ void VkRenderer::recordCommands()
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 					vkCmdBindIndexBuffer(commandBuffers[i], meshes[j]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
+					//Bind descriptor sets
+					vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 					vkCmdDrawIndexed(commandBuffers[i], meshes[j]->getIndexCount(), 1, 0, 0, 0);
 				}
 
