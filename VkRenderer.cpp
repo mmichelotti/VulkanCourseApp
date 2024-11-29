@@ -725,8 +725,8 @@ void VkRenderer::createMesh()
 		0, 1, 2,
 		2, 3, 0
 	};
-	Mesh* firstMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices1, &meshIndices);
-	Mesh* secondMesh = new Mesh(device.physical, device.logical, graphicsQueue, graphicsCommandPool, &meshVertices2, &meshIndices);
+	Mesh* firstMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices1, &meshIndices);
+	Mesh* secondMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices2, &meshIndices);
 	meshes.push_back(firstMesh);
 	meshes.push_back(secondMesh);
 
@@ -743,7 +743,7 @@ void VkRenderer::createUniformBuffer()
 	// Create
 	for (size_t i = 0; i < vectorLength; i++)
 	{
-		createBuffer(device.physical, device.logical, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
+		createBuffer(device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
 	}
 }
 

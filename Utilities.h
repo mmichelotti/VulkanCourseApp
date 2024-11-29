@@ -8,11 +8,35 @@
 #include <GLM/gtc/matrix_transform.hpp>
 
 const size_t MAX_FRAME_DRAWS = 2;
+
 struct Vertex
 {
 	glm::vec3 position;
 	glm::vec3 color;
 };
+
+struct MVP
+{
+	glm::mat4 projection;
+	glm::mat4 view;
+	glm::mat4 model;
+
+	MVP() : projection(glm::mat4(1.0f)), view(glm::mat4(1.0f)), model(glm::mat4(1.0f)) {}
+	MVP(float width, float height)
+	{
+		projection = glm::perspective(glm::radians(45.0f), width / height, 0.01f, 100.0f);
+		view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		model = glm::mat4(1.0f);
+		projection[1][1] *= -1; // Vulkan inverts the Y 
+	}
+};
+
+struct Device
+{
+	VkPhysicalDevice physical;
+	VkDevice logical;
+};
+
 const std::vector<const char*> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
@@ -165,7 +189,7 @@ static void copyBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool tra
 	// Free temporary command buffer back to pool
 	vkFreeCommandBuffers(device, transferCommandPool, 1, &transferCommandBuffer);
 }
-static void createBuffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
+static void createBuffer(Device device, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
 	VkMemoryPropertyFlags bufferProperties, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
 {
 	// CREATE VERTEX BUFFER
@@ -176,7 +200,7 @@ static void createBuffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDev
 	bufferInfo.usage = bufferUsage;								// Multiple types of buffer possible
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;			// Similar to Swap Chain images, can share vertex buffers
 
-	VkResult result = vkCreateBuffer(device, &bufferInfo, nullptr, buffer);
+	VkResult result = vkCreateBuffer(device.logical, &bufferInfo, nullptr, buffer);
 	if (result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create a Vertex Buffer!");
@@ -184,40 +208,22 @@ static void createBuffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDev
 
 	// GET BUFFER MEMORY REQUIREMENTS
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
+	vkGetBufferMemoryRequirements(device.logical, *buffer, &memRequirements);
 
 	// ALLOCATE MEMORY TO BUFFER
 	VkMemoryAllocateInfo memoryAllocInfo = {};
 	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	memoryAllocInfo.allocationSize = memRequirements.size;
-	memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits,		// Index of memory type on Physical Device that has required bit flags
+	memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(device.physical, memRequirements.memoryTypeBits,		// Index of memory type on Physical Device that has required bit flags
 		bufferProperties);																						// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT	: CPU can interact with memory
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT	: Allows placement of data straight into buffer after mapping (otherwise would have to specify manually)
 	// Allocate memory to VkDeviceMemory
-	result = vkAllocateMemory(device, &memoryAllocInfo, nullptr, bufferMemory);
+	result = vkAllocateMemory(device.logical, &memoryAllocInfo, nullptr, bufferMemory);
 	if (result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate Vertex Buffer Memory!");
 	}
 
 	// Allocate memory to given vertex buffer
-	vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+	vkBindBufferMemory(device.logical, *buffer, *bufferMemory, 0);
 }
-
-
-
-struct MVP
-{
-	glm::mat4 projection;
-	glm::mat4 view;
-	glm::mat4 model;
-
-	MVP() : projection(glm::mat4(1.0f)), view(glm::mat4(1.0f)), model(glm::mat4(1.0f)) {}
-	MVP(float width, float height)
-	{
-		projection = glm::perspective(glm::radians(45.0f), width / height, 0.01f, 100.0f);
-		view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		model = glm::mat4(1.0f);
-		projection[1][1] *= -1; // Vulkan inverts the Y 
-	}
-};

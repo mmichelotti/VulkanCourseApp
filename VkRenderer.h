@@ -17,11 +17,7 @@
 #include "Utilities.h"
 #include "Window.h"
 #include "Mesh.h"
-struct Device
-{
-	VkPhysicalDevice physical;
-	VkDevice logical;
-};
+
 
 class VkRenderer
 {
