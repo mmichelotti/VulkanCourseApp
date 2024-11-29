@@ -4,6 +4,8 @@
 #include <vector>
 #include "Utilities.h"
 
+//VERTEX BUFFER
+//INDEX BUFFER
 class Mesh
 {
 public:
@@ -25,7 +27,7 @@ private:
         MeshData() : count(0), buffer(VK_NULL_HANDLE), bufferMemory(VK_NULL_HANDLE) {}
 
         template<typename T>
-        MeshData(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<T>* data, VkBufferUsageFlagBits bufferType)
+        MeshData(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<T>* data, VkBufferUsageFlagBits bufferType) 
         {
             count = data->size();
             // Get size of buffer needed for vertices
@@ -39,6 +41,7 @@ private:
             createBuffer(physicalDevice, logicalDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 &stagingBuffer, &stagingBufferMemory);
+
 
             // MAP MEMORY TO VERTEX BUFFER
             void* mappedData;  // 1. Create pointer to a point in normal memory
