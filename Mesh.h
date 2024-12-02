@@ -6,10 +6,6 @@
 
 //VERTEX BUFFER
 //INDEX BUFFER
-struct Model
-{
-    glm::mat4 model;
-};
 
 class Mesh
 {
@@ -17,13 +13,15 @@ public:
     Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
     ~Mesh();
 
-    void setModel(glm::mat4 model) { this->model.model = model; }
+    void setModel(glm::mat4 model) { this->modelMatrix = model; }
 
-    const Model& getModel() { return model; }
-    const size_t& getVertexCount() { return vertex.count; }
-    const VkBuffer& getVertexBuffer() { return vertex.buffer; } 
-    const size_t& getIndexCount() { return index.count; }
-    const VkBuffer& getIndexBuffer() { return index.buffer; }
+#pragma region getters
+    const glm::mat4& getModel()         const { return modelMatrix; }
+    const size_t& getVertexCount()      const { return vertex.count; }
+    const VkBuffer& getVertexBuffer()   const { return vertex.buffer; }
+    const size_t& getIndexCount()       const { return index.count; }
+    const VkBuffer& getIndexBuffer()    const { return index.buffer; }
+#pragma endregion
 
 private:
     struct MeshData
@@ -71,7 +69,7 @@ private:
         }
     };
 
-    Model model;
+    glm::mat4 modelMatrix;
 
     MeshData vertex;
     MeshData index;

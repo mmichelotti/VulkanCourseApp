@@ -6,7 +6,7 @@ Mesh::Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, 
 {
 	vertex = MeshData(device, transferQueue, transferCmdPool, vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 	index = MeshData(device, transferQueue, transferCmdPool, indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-	model.model = glm::mat4(1.0f);
+	modelMatrix = glm::mat4(1.0f);
 }
 
 Mesh::~Mesh()
