@@ -15,10 +15,6 @@ struct Vertex
 	glm::vec3 position;
 	glm::vec3 color;
 };
-struct UboModel 
-{
-	glm::mat4 model;
-};
 struct UboViewProjection
 {
 	glm::mat4 projection;

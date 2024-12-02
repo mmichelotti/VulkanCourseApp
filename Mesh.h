@@ -6,6 +6,11 @@
 
 //VERTEX BUFFER
 //INDEX BUFFER
+struct Model
+{
+    glm::mat4 model;
+};
+
 class Mesh
 {
 public:
@@ -14,11 +19,11 @@ public:
 
     void setModel(glm::mat4 model) { this->model.model = model; }
 
-    UboModel getModel() { return model; }
-    size_t getVertexCount() { return vertex.count; }
-    VkBuffer getVertexBuffer() { return vertex.buffer; }
-    size_t getIndexCount() { return index.count; }
-    VkBuffer getIndexBuffer() { return index.buffer; }
+    const Model& getModel() { return model; }
+    const size_t& getVertexCount() { return vertex.count; }
+    const VkBuffer& getVertexBuffer() { return vertex.buffer; } 
+    const size_t& getIndexCount() { return index.count; }
+    const VkBuffer& getIndexBuffer() { return index.buffer; }
 
 private:
     struct MeshData
@@ -66,7 +71,7 @@ private:
         }
     };
 
-    UboModel model;
+    Model model;
 
     MeshData vertex;
     MeshData index;
