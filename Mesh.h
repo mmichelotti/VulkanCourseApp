@@ -12,6 +12,9 @@ public:
     Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
     ~Mesh();
 
+    void setModel(glm::mat4 model) { this->model.model = model; }
+
+    UboModel getModel() { return model; }
     size_t getVertexCount() { return vertex.count; }
     VkBuffer getVertexBuffer() { return vertex.buffer; }
     size_t getIndexCount() { return index.count; }
@@ -31,7 +34,7 @@ private:
         {
             count = data->size();
             // Get size of buffer needed for vertices
-            VkDeviceSize bufferSize = sizeof(Vertex) * data->size();
+            VkDeviceSize bufferSize = sizeof(Vertex) * count;
 
             // Temporary buffer to "stage" vertex data before transferring to GPU
             VkBuffer stagingBuffer;
@@ -62,6 +65,8 @@ private:
             vkFreeMemory(device.logical, stagingBufferMemory, nullptr);
         }
     };
+
+    UboModel model;
 
     MeshData vertex;
     MeshData index;

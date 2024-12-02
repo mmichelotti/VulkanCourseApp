@@ -8,25 +8,27 @@
 #include <GLM/gtc/matrix_transform.hpp>
 
 const size_t MAX_FRAME_DRAWS = 2;
+const size_t MAX_OBJECTS = 2;
 
 struct Vertex
 {
 	glm::vec3 position;
 	glm::vec3 color;
 };
-
-struct MVP
+struct UboModel 
+{
+	glm::mat4 model;
+};
+struct UboViewProjection
 {
 	glm::mat4 projection;
 	glm::mat4 view;
-	glm::mat4 model;
 
-	MVP() : projection(glm::mat4(1.0f)), view(glm::mat4(1.0f)), model(glm::mat4(1.0f)) {}
-	MVP(float width, float height)
+	UboViewProjection() : projection(glm::mat4(1.0f)), view(glm::mat4(1.0f)) {}
+	UboViewProjection(float width, float height)
 	{
 		projection = glm::perspective(glm::radians(45.0f), width / height, 0.01f, 100.0f);
 		view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		model = glm::mat4(1.0f);
 		projection[1][1] *= -1; // Vulkan inverts the Y 
 	}
 };

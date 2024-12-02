@@ -23,7 +23,7 @@ class VkRenderer
 {
 public:
 	VkRenderer(const Window& window);
-	void updateModel(glm::mat4 newModel);
+	void updateModel(size_t modelId, glm::mat4 newModel);
 	void draw();
 	~VkRenderer();
 
@@ -32,10 +32,9 @@ private:
 	size_t currentFrame = 0;
 
 	//Scene objects
-	Mesh* firstMesh;
 	std::vector<Mesh*> meshes;
 
-	MVP mvp;
+	UboViewProjection uboVP;
 
 	// Vulkan Components
 	VkInstance instance;
@@ -59,9 +58,14 @@ private:
 	VkPipeline graphicsPipeline;
 	VkPipelineLayout pipelineLayout;
 	VkRenderPass renderPass;
-	
+
+
+
+
+#pragma region Utility members
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
+#pragma endregion
 
 #pragma region Syncronization members
 	std::vector<VkSemaphore> imageSemaphores;
@@ -75,12 +79,18 @@ private:
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
 
-	std::vector<VkBuffer> uniformBuffer;
-	std::vector<VkDeviceMemory> uniformBufferMemory;
+	std::vector<VkBuffer> vpUniformBuffer;
+	std::vector<VkDeviceMemory> vpUniformBufferMemory;
+	std::vector<VkBuffer> modelDynamicUniformBuffer;
+	std::vector<VkDeviceMemory> modelDynamicUniformBufferMemory;
+
+	VkDeviceSize minUniformBufferOffset;
+	size_t modelUniformAlignment;
+	UboModel* modelTransferSpace;
 #pragma endregion
 
 
-#pragma region Functions - Create
+#pragma region -- Create Functions --
 	void createInstance();
 	void createDebugCallback();
 	void createLogicalDevice();
@@ -97,13 +107,15 @@ private:
 
 	
 	// - Create for descriptors
-	void createUniformBuffer();
+	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
 
-	void updateUniformBuffer(uint32_t imgIndex);
+	void updateUniformBuffers(uint32_t imgIndex);
 #pragma endregion
-	
+
+	//  - Allocate functions
+	void allocateDynamicBufferTransferSpace();
 
 	// - Record
 	void recordCommands();
