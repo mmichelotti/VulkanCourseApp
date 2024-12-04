@@ -13,10 +13,13 @@
 #include <algorithm>
 #include <array>
 
+#include "stb_image.h"
+
 #include "VulkanValidation.h"
 #include "Utilities.h"
 #include "Window.h"
 #include "Mesh.h"
+
 
 
 class VkRenderer
@@ -87,7 +90,8 @@ private:
 	std::vector<VkBuffer> vpUniformBuffer;
 	std::vector<VkDeviceMemory> vpUniformBufferMemory;
 #pragma endregion
-
+	std::vector<VkImage> textureImages;
+	std::vector<VkDeviceMemory> textureImageMemory;
 
 #pragma region -- Create Functions --
 	void createInstance();
@@ -146,8 +150,14 @@ private:
 
 	VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory* imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+
 	VkShaderModule createShaderModule(const std::string& fileName);
 
 
+
+	int createTexture(std::string fileName);
+
+	//--loading
+	stbi_uc* loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* size);
 };
 

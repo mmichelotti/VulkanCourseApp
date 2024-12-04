@@ -18,6 +18,9 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createFrameBuffers();
 		createCommandPool();
 
+
+		int firstText = createTexture("brick.png");
+
 		uboVP = UboViewProjection((float)swapChainExtent.width, (float)swapChainExtent.height);
 		createMesh();
 
@@ -40,6 +43,12 @@ void VkRenderer::updateModel(size_t modelId, glm::mat4 newModel)
 VkRenderer::~VkRenderer()
 {
 	vkDeviceWaitIdle(device.logical);
+
+	for (size_t i = 0; i < textureImages.size(); i++)
+	{
+		vkDestroyImage(device.logical, textureImages[i], nullptr);
+		vkFreeMemory(device.logical, textureImageMemory[i], nullptr);
+	}
 
 	vkDestroyImageView(device.logical, depthBufferImageView, nullptr);
 	vkDestroyImage(device.logical, depthBufferImage, nullptr);
@@ -1348,4 +1357,74 @@ VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
 	checkResult(result,"Failed to create a shader module!");
 
 	return shaderModule;
+}
+
+int VkRenderer::createTexture(std::string fileName)
+{
+	int width, height;
+	VkDeviceSize size;
+
+	stbi_uc* image = loadTextureFile(fileName, &width, &height, &size);
+
+	//Create staging buffer to hold loaded data, ready to copy to device
+	VkBuffer imageStagingBuffer;
+	VkDeviceMemory imageStagingBufferMemory;
+
+	createBuffer(device, size, 
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+		&imageStagingBuffer, &imageStagingBufferMemory);
+
+	// copy image data to staging buffer
+	void* data;
+	vkMapMemory(device.logical, imageStagingBufferMemory, 0, size, 0, &data);
+	memcpy(data, image, static_cast<size_t>(size));
+	vkUnmapMemory(device.logical, imageStagingBufferMemory);
+
+	stbi_image_free(image);
+
+	// create image to hold final texture
+	VkImage texImage;
+	VkDeviceMemory texImageMem;
+	texImage = createImage(width, height, 
+		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, 
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texImageMem);
+
+	//ensuring img is on VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL before copying the buffer
+	transitionImageLayout(device.logical, graphicsQueue, graphicsCommandPool, texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyImageBuffer(device.logical, graphicsQueue, graphicsCommandPool, imageStagingBuffer, texImage, width, height);
+	//transition iamge to be shader readable for frag usage
+	transitionImageLayout(device.logical, graphicsQueue, graphicsCommandPool, texImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	// add texturedata to vector for ref
+	textureImages.push_back(texImage);
+	textureImageMemory.push_back(texImageMem);
+
+	// clean staging buff
+	vkDestroyBuffer(device.logical, imageStagingBuffer, nullptr);
+	vkFreeMemory(device.logical, imageStagingBufferMemory, nullptr);
+
+	//return index of new text iamge
+	return textureImages.size() - 1;
+}
+
+stbi_uc* VkRenderer::loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize)
+{
+	// Number of channels image uses
+	int channels;
+
+	// Load pixel data for image
+	std::string fileLoc = "Textures/" + fileName;
+	stbi_uc* image = stbi_load(fileLoc.c_str(), width, height, &channels, STBI_rgb_alpha);
+
+	if (!image)
+	{
+		throw std::runtime_error("Failed to load a Texture file! (" + fileName + ")");
+	}
+
+	// Calculate image size using given and known data
+	*imageSize = *width * *height * 4;
+
+	return image;
 }
