@@ -17,19 +17,16 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createDepthBufferImage();
 		createFrameBuffers();
 		createCommandPool();
-
-
-		int firstText = createTexture("brick.png");
-
-		uboVP = UboViewProjection((float)swapChainExtent.width, (float)swapChainExtent.height);
-		createMesh();
-
-
 		createCommandBuffers();
+		createTextureSampler();
 		createUniformBuffers();
 		createDescriptorPool();
 		createDescriptorSets();
 		createSynchronization();
+
+		int firstText = createTextureImage("brick.png");
+		uboVP = UboViewProjection((float)swapChainExtent.width, (float)swapChainExtent.height);
+		createMesh();
 	}
 	catch (const std::runtime_error& e) {
 		printf("ERROR: %s\n", e.what());
@@ -44,8 +41,12 @@ VkRenderer::~VkRenderer()
 {
 	vkDeviceWaitIdle(device.logical);
 
+	vkDestroyDescriptorPool(device.logical, samplerDescriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device.logical, samplerSetLayout, nullptr);
+	vkDestroySampler(device.logical, textureSampler, nullptr);
 	for (size_t i = 0; i < textureImages.size(); i++)
 	{
+		//vkDestroyImageView(device.logical, textureImageViews[i], nullptr);
 		vkDestroyImage(device.logical, textureImages[i], nullptr);
 		vkFreeMemory(device.logical, textureImageMemory[i], nullptr);
 	}
@@ -251,6 +252,11 @@ void VkRenderer::createLogicalDevice()
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 
+	// Physical Device Features the Logical Device will be using
+	VkPhysicalDeviceFeatures deviceFeatures = {};
+	deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+
 	// Information to create logical device (sometimes called "device")
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -258,11 +264,7 @@ void VkRenderer::createLogicalDevice()
 	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();								// List of queue create infos so device can create required queues
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());	// Number of enabled logical device extensions
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();							// List of enabled logical device extensions
-
-	// Physical Device Features the Logical Device will be using
-	VkPhysicalDeviceFeatures deviceFeatures = {};
-
-	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;			// Physical Device features Logical Device will use
+	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;										// Physical Device features Logical Device will use
 
 	// Create the logical device for the given physical device
 	VkResult result = vkCreateDevice(device.physical, &deviceCreateInfo, nullptr, &device.logical);
@@ -450,6 +452,7 @@ void VkRenderer::createRenderPass()
 
 void VkRenderer::createDescriptorSetLayout()
 {
+	//-- UNIFORM 
 	// UboViewProjection Binding Info
 	VkDescriptorSetLayoutBinding vpLayoutBinding = {};
 	vpLayoutBinding.binding = 0;											// Binding point in shader (designated by binding number in shader)
@@ -466,8 +469,24 @@ void VkRenderer::createDescriptorSetLayout()
 	layoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());	// Number of binding infos
 	layoutCreateInfo.pBindings = layoutBindings.data();
 
-	// create set layout
 	VkResult result = vkCreateDescriptorSetLayout(device.logical, &layoutCreateInfo, nullptr, &descriptorSetLayout);
+	checkResult(result, "Failed to create descriptor set layout");
+
+	//-- SAMPLER
+	//this is now SET 1 BINDING 0, earleir it was SET 0 BINDING 0 
+	VkDescriptorSetLayoutBinding textureLayoutBinding{};
+	textureLayoutBinding.binding = 0;
+	textureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	textureLayoutBinding.descriptorCount = 1;
+	textureLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	textureLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo textureLayoutInfo{};
+	textureLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	textureLayoutInfo.bindingCount = 1;
+	textureLayoutInfo.pBindings = &textureLayoutBinding;
+
+	result = vkCreateDescriptorSetLayout(device.logical, &textureLayoutInfo, nullptr, &samplerSetLayout);
 	checkResult(result, "Failed to create descriptor set layout");
 }
 
@@ -483,9 +502,9 @@ void VkRenderer::createGraphicsPipeline()
 	// Build Shader Module to link to Grapphics Pipeline
 	VkShaderModule vertexShaderModule = createShaderModule("Shaders/vert.spv");
 	VkShaderModule fragShaderModule = createShaderModule("Shaders/frag.spv");
-	
+
 	// -- SHADER STAGE  --
-	 
+
 	// Vertex stage creation information
 	VkPipelineShaderStageCreateInfo vertexInfo = {};
 	vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -500,15 +519,15 @@ void VkRenderer::createGraphicsPipeline()
 	fragInfo.module = fragShaderModule;
 	fragInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo shaderStages[] = {vertexInfo, fragInfo};
-	
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertexInfo, fragInfo };
+
 	// -- VERTEX INPUT -- 
 	VkVertexInputBindingDescription bindingDescription = {};
 	bindingDescription.binding = 0;														// can bind multiple streams of data
 	bindingDescription.stride = sizeof(Vertex);											// size of a signel vertex object
 	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;							// how to move between data after each vertex. there is _INSTANCE too to instance multiple objects that are the same
 
-	
+
 	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions;
 	//position attributes
 	attributeDescriptions[0].binding = 0;												// which binding the data is at (in shad.frag layout(binding = 0) is implicit
@@ -517,8 +536,8 @@ void VkRenderer::createGraphicsPipeline()
 	attributeDescriptions[0].offset = offsetof(Vertex, position);						// where this attribute is defined in the data of a singel vertexù
 
 	//color attributes
-	attributeDescriptions[1].binding = 0;												
-	attributeDescriptions[1].location = 1;												
+	attributeDescriptions[1].binding = 0;
+	attributeDescriptions[1].location = 1;
 	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attributeDescriptions[1].offset = offsetof(Vertex, color);
 
@@ -533,7 +552,7 @@ void VkRenderer::createGraphicsPipeline()
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;	
+	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
 	// -- VIEWPORT  -- 
 	VkViewport viewportInfo = {};
@@ -548,7 +567,7 @@ void VkRenderer::createGraphicsPipeline()
 	VkRect2D scissor = {};
 	scissor.offset = { 0,0 };
 	scissor.extent = swapChainExtent;
-	
+
 	// -- VIEWPORT STATE --
 	VkPipelineViewportStateCreateInfo viewportStateInfo = {};
 	viewportStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -556,7 +575,7 @@ void VkRenderer::createGraphicsPipeline()
 	viewportStateInfo.pViewports = &viewportInfo;
 	viewportStateInfo.scissorCount = 1;
 	viewportStateInfo.pScissors = &scissor;
-	
+
 	// -- DYNAMIC STATES --
 	/*
 	//Dynamic states to enable (basically to stretch the viewport dynamically
@@ -612,10 +631,11 @@ void VkRenderer::createGraphicsPipeline()
 	colorBlendInfo.pAttachments = &colorAttachmentInfo;
 
 	// -- PIPELINE LAYOUT --
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = { descriptorSetLayout, samplerSetLayout};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo= {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -808,6 +828,29 @@ void VkRenderer::createMesh()
 
 }
 
+void VkRenderer::createTextureSampler()
+{
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = 16;
+
+	VkResult result = vkCreateSampler(device.logical, &samplerInfo, nullptr, &textureSampler);
+	checkResult(result, "Failed to create a texture sampler");
+
+}
+
 void VkRenderer::createUniformBuffers()
 {
 	// ViewProjection buffer size
@@ -828,7 +871,10 @@ void VkRenderer::createUniformBuffers()
 
 void VkRenderer::createDescriptorPool()
 {
+
 	// Type of descriptors + how many DESCRIPTORS, not Descriptor Sets (combined makes the pool size)
+	
+	//-- CREATE UNIFORM DESCRIPTOR POOL
 	// ViewProjection Pool
 	VkDescriptorPoolSize vpPoolSize = {};
 	vpPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -847,6 +893,20 @@ void VkRenderer::createDescriptorPool()
 	// Create Descriptor Pool
 	VkResult result = vkCreateDescriptorPool(device.logical, &poolCreateInfo, nullptr, &descriptorPool);
 	checkResult(result, "Faield to create descriptor pool");
+
+	//-- CREATE SAMPLER DESCRIPTOR POOL
+	VkDescriptorPoolSize samplerPoolSize{};
+	samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerPoolSize.descriptorCount = MAX_OBJECTS;
+	
+	VkDescriptorPoolCreateInfo samplerPoolInfo{};
+	samplerPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	samplerPoolInfo.maxSets = MAX_OBJECTS;
+	samplerPoolInfo.poolSizeCount = 1;
+	samplerPoolInfo.pPoolSizes = &samplerPoolSize;
+
+	result = vkCreateDescriptorPool(device.logical, &samplerPoolInfo, nullptr, &samplerDescriptorPool);
+	checkResult(result, "failed to create sampler descriptor pool");
 }
 
 void VkRenderer::createDescriptorSets()
@@ -1075,12 +1135,13 @@ bool VkRenderer::checkDeviceSuitable(VkPhysicalDevice device)
 	// Information about the device itself (ID, name, type, vendor, etc)
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
+	*/
+
 
 	// Information about what the device can do (geo shader, tess shader, wide lines, etc)
 	VkPhysicalDeviceFeatures deviceFeatures;
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-	*/
-
+	
 	QueueFamilyIndices indices = getQueueFamilies(device);
 
 	bool extensionsSupported = checkDeviceExtensionSupport(device);
@@ -1092,7 +1153,7 @@ bool VkRenderer::checkDeviceSuitable(VkPhysicalDevice device)
 		swapChainValid = !swapChainDetails.presentationModes.empty() && !swapChainDetails.formats.empty();
 	}
 
-	return indices.isValid() && extensionsSupported && swapChainValid;
+	return indices.isValid() && extensionsSupported && swapChainValid  && deviceFeatures.samplerAnisotropy;
 }
 
 
@@ -1359,7 +1420,7 @@ VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
 	return shaderModule;
 }
 
-int VkRenderer::createTexture(std::string fileName)
+int VkRenderer::createTextureImage(std::string fileName)
 {
 	int width, height;
 	VkDeviceSize size;
@@ -1407,6 +1468,53 @@ int VkRenderer::createTexture(std::string fileName)
 
 	//return index of new text iamge
 	return textureImages.size() - 1;
+}
+
+int VkRenderer::createTexture(std::string fileName)
+{
+	int textureImageLoc = createTexture(fileName);
+	VkImageView imageView = createImageView(textureImages[textureImageLoc], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	textureImageViews.push_back(imageView);
+
+	int descriptorLoc = createTextureDescriptor(imageView);
+
+	return descriptorLoc;
+}
+
+int VkRenderer::createTextureDescriptor(VkImageView textureImage)
+{
+	// Descriptor set alloc info
+	VkDescriptorSet descriptorSet;
+	VkDescriptorSetAllocateInfo setAllocInfo{};
+	setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	setAllocInfo.descriptorPool = samplerDescriptorPool;
+	setAllocInfo.descriptorSetCount = 1;
+	setAllocInfo.pSetLayouts = &samplerSetLayout;
+
+	VkResult result = vkAllocateDescriptorSets(device.logical, &setAllocInfo, &descriptorSet);
+	checkResult(result, "failed to allocate texture descriptor sets");
+
+	// texutre img info
+	VkDescriptorImageInfo imageInfo{};
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = textureImage;
+	imageInfo.sampler = textureSampler;
+
+	// descripptor write info
+	VkWriteDescriptorSet descriptorWrite{};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptorSet;
+	descriptorWrite.dstBinding = 0;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorCount = 1;
+	descriptorWrite.pImageInfo = &imageInfo;
+
+	// update new descriptor set
+	vkUpdateDescriptorSets(device.logical, 1, &descriptorWrite, 0, nullptr);
+	samplerDescriptorSets.push_back(descriptorSet);
+
+	return samplerDescriptorSets.size() - 1;
 }
 
 stbi_uc* VkRenderer::loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize)

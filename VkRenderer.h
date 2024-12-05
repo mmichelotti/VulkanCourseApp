@@ -69,28 +69,29 @@ private:
 
 
 
-#pragma region Utility members
+
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
-#pragma endregion
 
-#pragma region Syncronization members
 	std::vector<VkSemaphore> imageSemaphores;
 	std::vector <VkSemaphore> renderSemaphores;
 	std::vector <VkFence> drawFences;
-#pragma endregion
 
-#pragma region Descriptor members
 	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSetLayout samplerSetLayout;
 	VkPushConstantRange pushConstantRange;
 
 	VkDescriptorPool descriptorPool;
-	std::vector<VkDescriptorSet> descriptorSets;
+	VkDescriptorPool samplerDescriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets;			// 1 for each swap chain images
+	std::vector<VkDescriptorSet> samplerDescriptorSets;		// 1 for each texture
 
 	std::vector<VkBuffer> vpUniformBuffer;
 	std::vector<VkDeviceMemory> vpUniformBufferMemory;
-#pragma endregion
+
+	VkSampler textureSampler;
 	std::vector<VkImage> textureImages;
+	std::vector<VkImageView> textureImageViews;
 	std::vector<VkDeviceMemory> textureImageMemory;
 
 #pragma region -- Create Functions --
@@ -109,6 +110,7 @@ private:
 	void createCommandBuffers();
 	void createSynchronization();
 	void createMesh();
+	void createTextureSampler();
 	
 	
 	// - Create for descriptors
@@ -155,7 +157,9 @@ private:
 
 
 
+	int createTextureImage(std::string fileName);
 	int createTexture(std::string fileName);
+	int createTextureDescriptor(VkImageView textureImage);
 
 	//--loading
 	stbi_uc* loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* size);
