@@ -5,7 +5,7 @@
 class Window
 {
 public:
-	Window(std::string name, const unsigned int width = 800, const unsigned int height = 600);
+	Window(std::string name, const unsigned int width = 1920, const unsigned int height = 1080);
 	GLFWwindow* GetWindow() const { return window; }
 	bool IsRunning();
 	~Window();

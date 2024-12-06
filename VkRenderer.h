@@ -157,9 +157,9 @@ private:
 
 
 
-	int createTextureImage(std::string fileName);
-	int createTexture(std::string fileName);
-	int createTextureDescriptor(VkImageView textureImage);
+	size_t createTextureImage(std::string fileName);
+	size_t createTexture(std::string fileName);
+	size_t createTextureDescriptor(VkImageView textureImage);
 
 	//--loading
 	stbi_uc* loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* size);

@@ -24,7 +24,6 @@ VkRenderer::VkRenderer(const Window& window) : window(window.GetWindow())
 		createDescriptorSets();
 		createSynchronization();
 
-		int firstText = createTextureImage("brick.png");
 		uboVP = UboViewProjection((float)swapChainExtent.width, (float)swapChainExtent.height);
 		createMesh();
 	}
@@ -46,7 +45,7 @@ VkRenderer::~VkRenderer()
 	vkDestroySampler(device.logical, textureSampler, nullptr);
 	for (size_t i = 0; i < textureImages.size(); i++)
 	{
-		//vkDestroyImageView(device.logical, textureImageViews[i], nullptr);
+		vkDestroyImageView(device.logical, textureImageViews[i], nullptr);
 		vkDestroyImage(device.logical, textureImages[i], nullptr);
 		vkFreeMemory(device.logical, textureImageMemory[i], nullptr);
 	}
@@ -521,14 +520,14 @@ void VkRenderer::createGraphicsPipeline()
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertexInfo, fragInfo };
 
-	// -- VERTEX INPUT -- 
+	// -- VERTEX INPUT DATA -- 
 	VkVertexInputBindingDescription bindingDescription = {};
 	bindingDescription.binding = 0;														// can bind multiple streams of data
 	bindingDescription.stride = sizeof(Vertex);											// size of a signel vertex object
 	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;							// how to move between data after each vertex. there is _INSTANCE too to instance multiple objects that are the same
 
 
-	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions;
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions;
 	//position attributes
 	attributeDescriptions[0].binding = 0;												// which binding the data is at (in shad.frag layout(binding = 0) is implicit
 	attributeDescriptions[0].location = 0;												// layout shader location
@@ -540,6 +539,12 @@ void VkRenderer::createGraphicsPipeline()
 	attributeDescriptions[1].location = 1;
 	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+	//uv coordinates attributes
+	attributeDescriptions[2].binding = 0;
+	attributeDescriptions[2].location = 2;
+	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[2].offset = offsetof(Vertex, coordinates);
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -803,17 +808,17 @@ void VkRenderer::createMesh()
 
 	// this vertex data is without overlappping
 	std::vector<Vertex> meshVertices1 = {
-		{ { -0.6, 0.6, 0.0 }, { 1.0f, 0.0f, 0.0f } },	// 0
-		{ { -0.6, -0.6, 0.0 },{ 1.0f, 0.0f, 0.0f } },	    // 1
-		{ { 0.6, -0.6, 0.0 }, { 1.0f, 0.0f, 0.0f } },    // 2
-		{ { 0.6, 0.6, 0.0 },  { 1.0f, 1.0f, 0.0f } },   // 3
+		{ { -0.6, 0.6, 0.0 },  { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },				// 0
+		{ { -0.6, -0.6, 0.0 }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },				// 1
+		{ { 0.6, -0.6, 0.0 },  { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },				// 2
+		{ { 0.6, 0.6, 0.0 },   { 1.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } },				// 3
 	};
 
 	std::vector<Vertex> meshVertices2 = {
-		{ { -0.25, 0.6, 0.0 },{ 1.0f, 0.0f, 0.0f } },	// 0
-		{ { -0.25, -0.6, 0.0 },{ 0.0f, 1.0f, 0.0f } },	    // 1
-		{ { 0.25, -0.6, 0.0 },{ 0.0f, 0.0f, 1.0f } },    // 2
-		{ { 0.25, 0.6, 0.0 },{ 1.0f, 1.0f, 0.0f } },   // 3
+		{ { -0.25, 0.6, 0.0 }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },				// 0
+		{ { -0.25, -0.6, 0.0 },{ 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },				// 1
+		{ { 0.25, -0.6, 0.0 }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },				// 2
+		{ { 0.25, 0.6, 0.0 },  { 1.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } }				// 3
 	};
 
 	// Index Data
@@ -821,8 +826,8 @@ void VkRenderer::createMesh()
 		0, 1, 2,
 		2, 3, 0
 	};
-	Mesh* firstMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices1, &meshIndices);
-	Mesh* secondMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices2, &meshIndices);
+	Mesh* firstMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices1, &meshIndices, createTexture("brick.png"));
+	Mesh* secondMesh = new Mesh(device, graphicsQueue, graphicsCommandPool, &meshVertices2, &meshIndices, createTexture("brick.png"));
 	meshes.push_back(firstMesh);
 	meshes.push_back(secondMesh);
 
@@ -1003,7 +1008,13 @@ void VkRenderer::recordCommands(uint32_t imageIndex)
 				vkCmdBindIndexBuffer(commandBuffers[imageIndex], meshes[j]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 				vkCmdPushConstants(commandBuffers[imageIndex], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &meshes[j]->getModel());
 
-				vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);		//Bind descriptor sets
+				std::array<VkDescriptorSet, 2> descriptorSetGroup = { descriptorSets[imageIndex], samplerDescriptorSets[meshes[j]->getTexId()] };
+				vkCmdBindDescriptorSets
+				(
+					commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 
+					static_cast<uint32_t>(descriptorSetGroup.size()), descriptorSetGroup.data(),
+					0, nullptr
+				);  //Bind descriptor sets
 				vkCmdDrawIndexed(commandBuffers[imageIndex], meshes[j]->getIndexCount(), 1, 0, 0, 0);
 			}
 
@@ -1420,7 +1431,7 @@ VkShaderModule VkRenderer::createShaderModule(const std::string& fileName)
 	return shaderModule;
 }
 
-int VkRenderer::createTextureImage(std::string fileName)
+size_t VkRenderer::createTextureImage(std::string fileName)
 {
 	int width, height;
 	VkDeviceSize size;
@@ -1470,9 +1481,9 @@ int VkRenderer::createTextureImage(std::string fileName)
 	return textureImages.size() - 1;
 }
 
-int VkRenderer::createTexture(std::string fileName)
+size_t VkRenderer::createTexture(std::string fileName)
 {
-	int textureImageLoc = createTexture(fileName);
+	int textureImageLoc = createTextureImage(fileName);
 	VkImageView imageView = createImageView(textureImages[textureImageLoc], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 	textureImageViews.push_back(imageView);
 
@@ -1481,7 +1492,7 @@ int VkRenderer::createTexture(std::string fileName)
 	return descriptorLoc;
 }
 
-int VkRenderer::createTextureDescriptor(VkImageView textureImage)
+size_t VkRenderer::createTextureDescriptor(VkImageView textureImage)
 {
 	// Descriptor set alloc info
 	VkDescriptorSet descriptorSet;

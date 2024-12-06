@@ -12,8 +12,9 @@ const size_t MAX_OBJECTS = 2;
 
 struct Vertex
 {
-	glm::vec3 position;
-	glm::vec3 color;
+	glm::vec3 position;			// vertex pos			(xyz)
+	glm::vec3 color;			// vertex color			(rgb)
+	glm::vec2 coordinates;		// texture coordinates  (uv)
 };
 struct UboViewProjection
 {

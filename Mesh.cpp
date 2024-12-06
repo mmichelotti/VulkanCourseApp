@@ -1,8 +1,8 @@
 #include "Mesh.h"
 
 
-Mesh::Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices) :
-	device(device)
+Mesh::Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, size_t texId) :
+	device(device), texId(texId)
 {
 	vertex = MeshData(device, transferQueue, transferCmdPool, vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 	index = MeshData(device, transferQueue, transferCmdPool, indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);

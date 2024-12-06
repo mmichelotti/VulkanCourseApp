@@ -10,12 +10,13 @@
 class Mesh
 {
 public:
-    Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
+    Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, size_t texId);
     ~Mesh();
 
     void setModel(glm::mat4 model) { this->modelMatrix = model; }
 
 #pragma region getters
+    const size_t getTexId()             const { return texId; }
     const glm::mat4& getModel()         const { return modelMatrix; }
     const size_t& getVertexCount()      const { return vertex.count; }
     const VkBuffer& getVertexBuffer()   const { return vertex.buffer; }
@@ -70,6 +71,7 @@ private:
     };
 
     glm::mat4 modelMatrix;
+    size_t texId;
 
     MeshData vertex;
     MeshData index;
