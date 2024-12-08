@@ -19,6 +19,7 @@
 #include "Utilities.h"
 #include "Window.h"
 #include "Mesh.h"
+#include "Model.h"
 
 
 
@@ -36,6 +37,7 @@ private:
 
 	//Scene objects
 	std::vector<Mesh*> meshes;
+	std::vector<Model> models;
 
 	UboViewProjection uboVP;
 
@@ -65,9 +67,6 @@ private:
 	VkPipeline graphicsPipeline;
 	VkPipelineLayout pipelineLayout;
 	VkRenderPass renderPass;
-
-
-
 
 
 	VkFormat swapChainImageFormat;
@@ -111,6 +110,7 @@ private:
 	void createSynchronization();
 	void createMesh();
 	void createTextureSampler();
+	
 	
 	
 	// - Create for descriptors
@@ -160,6 +160,9 @@ private:
 	size_t createTextureImage(std::string fileName);
 	size_t createTexture(std::string fileName);
 	size_t createTextureDescriptor(VkImageView textureImage);
+
+	void createModel(std::string modelFile);
+
 
 	//--loading
 	stbi_uc* loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* size);

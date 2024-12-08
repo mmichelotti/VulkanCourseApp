@@ -12,7 +12,8 @@ class Mesh
 public:
     Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, size_t texId);
     ~Mesh();
-
+    
+    void cleanUp();
     void setModel(glm::mat4 model) { this->modelMatrix = model; }
 
 #pragma region getters

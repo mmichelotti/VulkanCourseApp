@@ -1,6 +1,5 @@
 #include "Mesh.h"
 
-
 Mesh::Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, size_t texId) :
 	device(device), texId(texId)
 {
@@ -10,6 +9,11 @@ Mesh::Mesh(Device device, VkQueue transferQueue, VkCommandPool transferCmdPool, 
 }
 
 Mesh::~Mesh()
+{
+	cleanUp();
+}
+
+void Mesh::cleanUp()
 {
 	vkDestroyBuffer(device.logical, vertex.buffer, nullptr);
 	vkFreeMemory(device.logical, vertex.bufferMemory, nullptr);

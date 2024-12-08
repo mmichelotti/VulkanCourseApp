@@ -1528,6 +1528,10 @@ size_t VkRenderer::createTextureDescriptor(VkImageView textureImage)
 	return samplerDescriptorSets.size() - 1;
 }
 
+void VkRenderer::createModel(std::string modelFile)
+{
+}
+
 stbi_uc* VkRenderer::loadTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize)
 {
 	// Number of channels image uses
